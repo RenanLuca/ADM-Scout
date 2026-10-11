@@ -104,19 +104,30 @@ export interface BanUsage {
   player: string;
   seasonGames: number;
   trainingGames: number;
+  /** Vitórias estimadas em treino: o cblow.xyz só informa o placar da série, não o vencedor de cada jogo. */
+  trainingWins: number;
 }
 
-export interface BanCandidate extends ChampionRef {
-  tier: BanTier;
+export interface BanChampion extends ChampionRef {
   /** Quem do time joga esse campeão, do mais usado para o menos. */
   usage: BanUsage[];
   seasonGames: number;
   trainingGames: number;
+  trainingWins: number;
+}
+
+export interface BanCandidate extends BanChampion {
+  tier: BanTier;
 }
 
 export interface TeamBans {
   team: { slug: string; name: string };
+  /** Campeões da tier list dos mais roubados, por tier. */
   tiers: { tier: BanTier; champions: BanCandidate[] }[];
+  /** Fora da tier list: campeões que o time vence bastante nos treinos. */
+  trainingStandouts: BanChampion[];
+  /** Fora da tier list: campeões com muitos jogos na soloq. */
+  soloqMostPlayed: BanChampion[];
   /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */
   unavailable: string[];
 }

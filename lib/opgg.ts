@@ -7,7 +7,7 @@ import type { ChampionStat, PlayerStats, StatsMode } from "./types";
 // Servidor MCP público do OP.GG (Streamable HTTP, sem chave nem sessão).
 const MCP_URL = "https://mcp-api.op.gg/mcp";
 const REGION = "br";
-const RECENT_LIMIT = 10;
+const RECENT_LIMIT = 20; // máximo aceito pela ferramenta do OP.GG
 
 export class OpggError extends Error {
   constructor(
@@ -278,7 +278,7 @@ async function loadStats(
 
 /**
  * Elo + campeões do jogador, da temporada ranqueada ("season") ou das
- * últimas 10 partidas ("recent"). Cache de 30 min por Riot ID e modo; erros
+ * últimas 20 partidas ("recent"). Cache de 30 min por Riot ID e modo; erros
  * lançam e não ficam no cache.
  */
 export async function getPlayerStats(riotId: string, mode: StatsMode): Promise<PlayerStats> {

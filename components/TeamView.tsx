@@ -20,7 +20,7 @@ const TABS: { value: Tab; label: string }[] = [
 
 const MODES: { value: StatsMode; label: string }[] = [
   { value: "season", label: "Temporada" },
-  { value: "recent", label: "Últimas 10 partidas" },
+  { value: "recent", label: "Últimas 20 partidas" },
 ];
 
 export function TeamView({ slug }: { slug: string }) {
