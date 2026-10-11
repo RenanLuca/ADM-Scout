@@ -102,6 +102,7 @@ export type BanTier = "S" | "A" | "B";
 
 export interface BanUsage {
   player: string;
+  /** Jogos na temporada ranqueada (lista completa do OP.GG). */
   seasonGames: number;
   trainingGames: number;
   /** Vitórias estimadas em treino: o cblow.xyz só informa o placar da série, não o vencedor de cada jogo. */
