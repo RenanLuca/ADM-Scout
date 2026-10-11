@@ -26,13 +26,13 @@ export async function GET(
   }
 
   try {
-    return Response.json(await getPlayerStats(player.riotId, mode));
+    return Response.json(await getPlayerStats(player.riotId, mode, data?.team.name));
   } catch (err) {
     console.error(`[opgg] ${player.riotId}:`, err);
     if (isNotFound(err)) {
       return Response.json(
         {
-          error: `Jogador "${player.riotId}" não encontrado no OP.GG. Confira nome e tag.`,
+          error: `Jogador "${player.riotId}" não encontrado no OP.GG. Se o jogador mudou de nick, corrija em data/riot-ids.json.`,
           code: "not_found",
         },
         { status: 404 },

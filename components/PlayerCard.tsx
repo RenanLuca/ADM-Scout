@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { ChampionRow } from "@/components/ChampionRow";
 import { Badge } from "@/components/ui/badge";
@@ -8,9 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchPlayerStats } from "@/lib/api";
-import type { Player, Role, StatsMode } from "@/lib/types";
+import type { Player, PlayerStats, Role, StatsMode } from "@/lib/types";
 
 const TOP_CHAMPIONS = 5;
+
+function opggUrlFor(riotId: string): string {
+  const i = riotId.lastIndexOf("#");
+  const name = encodeURIComponent(riotId.slice(0, i));
+  const tag = encodeURIComponent(riotId.slice(i + 1));
+  return `https://op.gg/lol/summoners/br/${name}-${tag}`;
+}
 
 const ROLE_LABEL: Record<Role, string> = {
   TOP: "Top",
@@ -37,19 +44,8 @@ function StatsSkeleton() {
   );
 }
 
-function PlayerStatsBody({
-  teamSlug,
-  player,
-  mode,
-}: {
-  teamSlug: string;
-  player: Player;
-  mode: StatsMode;
-}) {
-  const { data, error, isPending, isFetching, refetch } = useQuery({
-    queryKey: ["player", teamSlug, player.slug, mode],
-    queryFn: () => fetchPlayerStats(teamSlug, player.slug, mode),
-  });
+function PlayerStatsBody({ query }: { query: UseQueryResult<PlayerStats, Error> }) {
+  const { data, error, isPending, isFetching, refetch } = query;
 
   if (isPending) return <StatsSkeleton />;
 
@@ -105,14 +101,28 @@ export function PlayerCard({
   player: Player;
   mode: StatsMode;
 }) {
+  const query = useQuery({
+    queryKey: ["player", teamSlug, player.slug, mode],
+    queryFn: () => fetchPlayerStats(teamSlug, player.slug, mode),
+    enabled: Boolean(player.riotId),
+  });
+
+  // Se o jogador trocou de nick, mostramos o nome que o OP.GG realmente achou.
+  const currentId = query.data?.riotId ?? player.riotId;
+  const renamed = Boolean(query.data && query.data.riotId !== player.riotId);
+  const opggUrl = renamed && currentId ? opggUrlFor(currentId) : player.opggUrl;
+
   return (
     <Card>
       <CardHeader>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <CardTitle className="truncate text-base">{player.name}</CardTitle>
-            {player.riotId && (
-              <p className="truncate text-xs text-muted-foreground">{player.riotId}</p>
+            {currentId && (
+              <p className="truncate text-xs text-muted-foreground" title={renamed ? "Nick atualizado automaticamente" : undefined}>
+                {currentId}
+                {renamed && " · nick atualizado"}
+              </p>
             )}
           </div>
           <div className="flex shrink-0 gap-1">
@@ -123,17 +133,17 @@ export function PlayerCard({
       </CardHeader>
       <CardContent className="space-y-4">
         {player.riotId ? (
-          <PlayerStatsBody teamSlug={teamSlug} player={player} mode={mode} />
+          <PlayerStatsBody query={query} />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Sem link do OP.GG no cblow.xyz. Adicione{" "}
+            Sem Riot ID válido. Informe{" "}
             <code className="rounded bg-muted px-1 py-0.5 text-xs">{player.slug}</code>{" "}
             em <code className="rounded bg-muted px-1 py-0.5 text-xs">data/riot-ids.json</code>.
           </p>
         )}
-        {player.opggUrl && (
+        {opggUrl && (
           <a
-            href={player.opggUrl}
+            href={opggUrl}
             target="_blank"
             rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"

@@ -70,15 +70,21 @@ export async function getTeam(slug: string): Promise<TeamWithPlayers | null> {
   if (!data) return null;
 
   const players: Player[] = data.players.map((p) => {
+    const override = getRiotIdOverride(p.slug);
     const riotId =
-      getRiotIdOverride(p.slug) ?? (p.opggUrl ? riotIdFromOpgg(p.opggUrl) : null);
+      override !== undefined
+        ? override
+        : p.opggUrl
+          ? riotIdFromOpgg(p.opggUrl)
+          : null;
     return {
       slug: p.slug,
       name: p.nick,
       role: ROLES[p.role] ?? null,
       reserve: p.reserve,
       riotId,
-      opggUrl: riotId ? (p.opggUrl ?? opggUrlFor(riotId)) : null,
+      // Com override o link do cblow.xyz pode estar desatualizado: monta a partir do Riot ID.
+      opggUrl: riotId ? (override ? opggUrlFor(riotId) : (p.opggUrl ?? opggUrlFor(riotId))) : null,
     };
   });
 

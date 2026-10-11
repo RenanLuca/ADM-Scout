@@ -276,12 +276,80 @@ async function loadStats(
   return { elo, games: samples.length, rows: topChampions(samples, Infinity) };
 }
 
+const TAG_STOPWORDS = /^(do|da|de|dos|das|in|of|the)$/i;
+
+/** Tags de time prováveis, da mais para a menos provável ("AMIGOS DO MYLENNZY" → ADM, AM, AMI…). */
+export function teamTagCandidates(teamName: string): string[] {
+  const words = teamName.split(/\s+/).filter(Boolean);
+  const significant = words.filter((w) => !TAG_STOPWORDS.test(w));
+  const tags = new Set<string>();
+  const add = (s: string) => {
+    const t = s.toUpperCase();
+    if (t.length >= 2 && t.length <= 5) tags.add(t);
+  };
+
+  add(words.map((w) => w[0]).join(""));
+  add(significant.map((w) => w[0]).join(""));
+  for (const w of significant) {
+    add(w.slice(0, 3));
+    add(w.slice(0, 2));
+  }
+  add(teamName.replace(/\s+/g, "").slice(0, 3));
+  return [...tags];
+}
+
+async function accountExists(gameName: string, tagLine: string): Promise<boolean> {
+  try {
+    await callTool("lol_get_summoner_profile", {
+      game_name: gameName,
+      tag_line: tagLine,
+      region: REGION,
+      desired_output_fields: ["data.summoner.most_champions.play"],
+    });
+    return true;
+  } catch (err) {
+    if (isNotFound(err)) return false;
+    throw err; // indisponibilidade não pode virar "não achou" em cache
+  }
+}
+
+/**
+ * Procura o nome atual de uma conta renomeada, mantendo a #TAG: remove um
+ * prefixo antigo ("T1L Nick" → "Nick") ou testa "TAG Nick" / "TAGNick" com as
+ * tags prováveis do time. Cacheia inclusive o "não achei" (15 min) para não repetir
+ * dezenas de chamadas a cada acesso.
+ */
+async function findRenamedName(
+  gameName: string,
+  tagLine: string,
+  teamName: string,
+): Promise<string | null> {
+  "use cache";
+  cacheLife({ stale: 300, revalidate: 900, expire: 3600 });
+
+  const candidates: string[] = [];
+  const firstSpace = gameName.indexOf(" ");
+  if (firstSpace > 0) candidates.push(gameName.slice(firstSpace + 1)); // tirou/alterou a tag
+  for (const tag of teamTagCandidates(teamName)) {
+    candidates.push(`${tag} ${gameName}`, `${tag}${gameName}`);
+  }
+
+  const unique = [...new Set(candidates)].filter((c) => c !== gameName);
+  const found = await Promise.all(unique.map((c) => accountExists(c, tagLine)));
+  const i = found.findIndex(Boolean);
+  return i === -1 ? null : unique[i];
+}
+
 /**
  * Elo + campeões do jogador, da temporada ranqueada ("season") ou das
  * últimas 20 partidas ("recent"). Cache de 30 min por Riot ID e modo; erros
  * lançam e não ficam no cache.
  */
-export async function getPlayerStats(riotId: string, mode: StatsMode): Promise<PlayerStats> {
+export async function getPlayerStats(
+  riotId: string,
+  mode: StatsMode,
+  teamName?: string,
+): Promise<PlayerStats> {
   "use cache";
   cacheLife({ stale: 300, revalidate: 1800, expire: 3600 });
 
@@ -290,19 +358,29 @@ export async function getPlayerStats(riotId: string, mode: StatsMode): Promise<P
   const names = gameName.includes(" ") ? [gameName, gameName.replace(/ /g, "-")] : [gameName];
 
   let result: Awaited<ReturnType<typeof loadStats>> | null = null;
-  for (const [i, name] of names.entries()) {
+  let resolvedId = riotId;
+  for (const name of names) {
     try {
       result = await loadStats(name, tagLine, mode);
       break;
     } catch (err) {
-      if (i === names.length - 1 || !isNotFound(err)) throw err;
+      if (!isNotFound(err)) throw err;
+    }
+  }
+
+  // Nick trocado (ex.: colocou a tag do time na frente): o #TAG costuma ficar igual.
+  if (!result && teamName) {
+    const renamed = await findRenamedName(gameName, tagLine, teamName);
+    if (renamed) {
+      result = await loadStats(renamed, tagLine, mode);
+      resolvedId = `${renamed}#${tagLine}`;
     }
   }
   if (!result) throw new OpggError("not_found", "Summoner not found");
 
   const resolved = await Promise.all(result.rows.map((r) => resolveChampion(r.championId)));
   return {
-    riotId,
+    riotId: resolvedId,
     mode,
     elo: result.elo,
     games: result.games,

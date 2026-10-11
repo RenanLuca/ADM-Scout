@@ -29,7 +29,7 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     Promise.allSettled(
       data.players.map(async (p) => ({
         name: p.name,
-        stats: p.riotId ? await getPlayerStats(p.riotId, "season") : null,
+        stats: p.riotId ? await getPlayerStats(p.riotId, "season", data.team.name) : null,
       })),
     ),
   ]);

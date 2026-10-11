@@ -1,10 +1,17 @@
 import overrides from "@/data/riot-ids.json";
 
-const overrideMap = overrides as Record<string, string>;
+const overrideMap = overrides as Record<string, string | null>;
 
-/** Correção manual ("Nome#TAG") para quando o OP.GG do cblow.xyz não resolve a conta certa. */
-export function getRiotIdOverride(playerSlug: string): string | null {
-  const id = overrideMap[playerSlug]?.trim();
+/**
+ * Riot ID definido à mão em data/riot-ids.json ("Nome#TAG").
+ *  - string: usa esse valor (tem prioridade sobre o link do OP.GG do cblow.xyz);
+ *  - null:   o jogador fica marcado como "sem Riot ID" (inválido por enquanto);
+ *  - undefined: sem entrada, cai no link do OP.GG do cblow.xyz.
+ */
+export function getRiotIdOverride(playerSlug: string): string | null | undefined {
+  if (!(playerSlug in overrideMap)) return undefined;
+  // Tolera "Nome #TAG" e espaços duplicados ao digitar à mão.
+  const id = overrideMap[playerSlug]?.replace(/\s+#/, "#").replace(/\s{2,}/g, " ").trim();
   return id && id.includes("#") ? id : null;
 }
 
