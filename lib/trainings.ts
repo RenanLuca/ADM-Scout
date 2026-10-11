@@ -7,6 +7,7 @@ import type {
   Role,
   Training,
   TrainingPick,
+  TeamTrainings,
   TrainingStats,
 } from "./types";
 
@@ -140,4 +141,21 @@ export async function getTrainingStats(): Promise<TrainingStats> {
   );
 
   return { trainings, pools };
+}
+
+/** Treinos de que o time participou e o pool de campeões dos jogadores dele. */
+export async function getTeamTrainings(slug: string): Promise<TeamTrainings | null> {
+  const { trainings, pools } = await getTrainingStats();
+
+  const mine = trainings.filter((t) => t.team1.slug === slug || t.team2.slug === slug);
+  const team = mine
+    .flatMap((t) => [t.team1, t.team2])
+    .find((t) => t.slug === slug);
+  if (!team) return null;
+
+  return {
+    team: { slug, name: team.name },
+    trainings: mine,
+    pools: pools.filter((p) => p.teamSlug === slug),
+  };
 }

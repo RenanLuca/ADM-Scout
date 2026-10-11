@@ -5,7 +5,8 @@ import type {
   StatsMode,
   Team,
   TeamWithPlayers,
-  TrainingStats,
+  TeamBans,
+  TeamTrainings,
 } from "./types";
 
 export class ApiError extends Error {
@@ -37,4 +38,7 @@ export const fetchPlayerStats = (
   mode: StatsMode,
 ) => getJson<PlayerStats>(`/api/times/${teamSlug}/jogadores/${playerSlug}?mode=${mode}`);
 
-export const fetchTrainingStats = () => getJson<TrainingStats>("/api/estatisticas/treinos");
+export const fetchTeamTrainings = (slug: string) =>
+  getJson<TeamTrainings>(`/api/times/${slug}/treinos`);
+
+export const fetchTeamBans = (slug: string) => getJson<TeamBans>(`/api/times/${slug}/bans`);

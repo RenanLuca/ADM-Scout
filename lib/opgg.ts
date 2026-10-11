@@ -277,7 +277,7 @@ async function loadStats(
 }
 
 /**
-   * Elo + campeões do jogador, da temporada ranqueada ("season") ou das
+ * Elo + campeões do jogador, da temporada ranqueada ("season") ou das
  * últimas 10 partidas ("recent"). Cache de 30 min por Riot ID e modo; erros
  * lançam e não ficam no cache.
  */
