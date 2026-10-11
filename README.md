@@ -1,36 +1,39 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# CBLOW Scout
 
-## Getting Started
+Antes de uma partida do CBLOW, veja a rota, o elo e os campeões mais jogados de cada jogador do time adversário.
 
-First, run the development server:
+## Como rodar
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+npm install
+npm run dev   # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Não precisa de chave de API.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## De onde vêm os dados
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- **Times, jogadores, rota e Riot ID:** API do próprio cblow.xyz (`api.cblow.xyz`). O Riot ID é extraído do
+  link do OP.GG de cada jogador (`.../summoners/br/Nome-TAG` → `Nome#TAG`). Cache de 1h.
+- **Elo e campeões:** [servidor MCP público do OP.GG](https://mcp-api.op.gg/mcp), sem chave e sem o limite
+  de 100 chamadas/2 min da Riot. Uma chamada por jogador na temporada, duas nas últimas 10 partidas.
+  Cache de 30 min por jogador e período.
+- **Ícones e nomes dos campeões:** Data Dragon (CDN da Riot).
 
-## Learn More
+## Períodos
 
-To learn more about Next.js, take a look at the following resources:
+- **Temporada:** top 5 campeões da temporada ranqueada atual (jogos, winrate, KDA).
+- **Últimas 10 partidas:** top 5 campeões nas 10 partidas mais recentes (qualquer fila).
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## Correções manuais
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Se o link do OP.GG no cblow.xyz não leva à conta certa, corrija em [`data/riot-ids.json`](data/riot-ids.json),
+pelo slug do jogador (final de `/jogadores/<slug>`):
 
-## Deploy on Vercel
+```json
+{ "exc4mbau": "ExC4mBau#6344" }
+```
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Fora do MVP
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Picks do campeonato (o cblow.xyz não mostra campeões por partida), comparador, IA, filtros extras.
