@@ -4,19 +4,100 @@ import { getPlayerStats } from "./opgg";
 import { getSeasonPool } from "./opgg-site";
 import { TIER_LIST, TIER_ORDER } from "./tierlist";
 import { getTeamTrainings } from "./trainings";
-import type { BanCandidate, BanChampion, BanUsage, ChampionRef, TeamBans } from "./types";
+import type {
+  BanCandidate,
+  BanChampion,
+  BanRecommendation,
+  BanThreat,
+  BanTier,
+  BanUsage,
+  ChampionRef,
+  TeamBans,
+} from "./types";
 
-// Critérios dos bans que não vêm da tier list.
-const TRAINING_MIN_GAMES = 2;
-const TRAINING_MIN_WINRATE = 0.6;
-const SOLOQ_MIN_PLAYER_GAMES = 20;
-const EXTRA_LIMIT = 10;
+// ---------------------------------------------------------------------------
+// Pontuação dos bans
+//
+// nota = 100 × (0,7 × domínio + 0,3 × tier list)
+//
+// domínio (0–1) = o melhor jogador do time no campeão, mais um bônus pequeno
+// quando outros jogadores também o dominam (o time tem opção de troca):
+//   volume    = min(jogos / 40, 1)                       jogos = temporada + treinos
+//   winrate   = (vitórias + 5) / (jogos + 10)            suavizado, evita 3 jogos = 100%
+//   qualidade = (winrate − 45%) / 15%, limitado a 0–1    ≤45% → 0, ≥60% → 1
+//   domínio do jogador = volume × (0,4 + 0,6 × qualidade)
+// ---------------------------------------------------------------------------
 
-const total = (u: BanUsage) => u.seasonGames + u.trainingGames;
-const volume = (c: BanChampion) => c.usage.reduce((s, u) => s + total(u), 0);
+const PRIMARY_COUNT = 5;
+const SECONDARY_COUNT = 10;
+/** Menos jogos que isso no total do time e o campeão nem entra na disputa. */
+const MIN_TEAM_GAMES = 3;
+
+const MASTERY_WEIGHT = 0.7;
+const TIER_WEIGHT = 0.3;
+const TIER_VALUE: Record<BanTier, number> = { S: 1, A: 0.66, B: 0.33 };
+
+const FULL_VOLUME_GAMES = 40;
+const PRIOR_GAMES = 10;
+const WINRATE_FLOOR = 0.45;
+const WINRATE_SPAN = 0.15;
+const DEPTH_BONUS = 0.15;
+const DEPTH_MIN_GAMES = 5;
+
+const HIGH_THREAT = 70;
+const MEDIUM_THREAT = 50;
+
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+const gamesOf = (u: BanUsage) => u.seasonGames + u.trainingGames;
+const winsOf = (u: BanUsage) => u.seasonWins + u.trainingWins;
+const volume = (c: BanChampion) => c.usage.reduce((s, u) => s + gamesOf(u), 0);
+
+function winrateOf(u: BanUsage): number {
+  return (winsOf(u) + PRIOR_GAMES / 2) / (gamesOf(u) + PRIOR_GAMES);
+}
+
+function mastery(u: BanUsage): number {
+  const vol = clamp01(gamesOf(u) / FULL_VOLUME_GAMES);
+  const quality = clamp01((winrateOf(u) - WINRATE_FLOOR) / WINRATE_SPAN);
+  return vol * (0.4 + 0.6 * quality);
+}
+
+function threatOf(score: number): BanThreat {
+  return score >= HIGH_THREAT ? "alta" : score >= MEDIUM_THREAT ? "media" : "baixa";
+}
+
+function recommend(champion: BanChampion, tier: BanTier | null): BanRecommendation | null {
+  if (volume(champion) < MIN_TEAM_GAMES) return null;
+
+  const ranked = champion.usage
+    .map((u) => ({ u, m: mastery(u) }))
+    .sort((a, b) => b.m - a.m || gamesOf(b.u) - gamesOf(a.u));
+
+  const best = ranked[0]?.m ?? 0;
+  const depth = Math.min(ranked.filter((r) => gamesOf(r.u) >= DEPTH_MIN_GAMES).length, 3) / 3;
+  const domain = clamp01(best + DEPTH_BONUS * depth);
+  const score = 100 * (MASTERY_WEIGHT * domain + TIER_WEIGHT * (tier ? TIER_VALUE[tier] : 0));
+
+  return {
+    id: champion.id,
+    name: champion.name,
+    iconUrl: champion.iconUrl,
+    score: Math.round(score),
+    threat: threatOf(score),
+    tier,
+    players: ranked.slice(0, 3).map(({ u }) => ({
+      ...u,
+      games: gamesOf(u),
+      winrate: winrateOf(u),
+    })),
+  };
+}
+
+// ---------------------------------------------------------------------------
 
 interface SeasonChampion extends ChampionRef {
   games: number;
+  wins: number;
 }
 
 /**
@@ -41,6 +122,7 @@ async function loadSeason(
           name: r.name,
           iconUrl: championIconUrl(r.version, r.id),
           games: c.games,
+          wins: c.wins,
         };
       }),
     );
@@ -51,16 +133,15 @@ async function loadSeason(
       name: c.championName,
       iconUrl: c.iconUrl,
       games: c.games,
+      wins: c.wins,
     }));
   }
 }
 
 /**
- * Possíveis bans contra um time:
- *  1. campeões da tier list dos mais roubados do campeonato (S, A, B);
- *  2. campeões que o time vence bastante nos treinos;
- *  3. campeões com muitos jogos na soloq (temporada ranqueada inteira).
- * Os grupos 2 e 3 não repetem campeões que já estão na tier list.
+ * Bans sugeridos contra um time: ranking único que mistura a tier list dos
+ * campeões mais roubados com o que cada jogador joga bem (temporada ranqueada
+ * inteira + treinos). Devolve os 5 mais prioritários e os 10 seguintes.
  */
 export async function getTeamBans(slug: string): Promise<TeamBans | null> {
   const data = await getTeam(slug);
@@ -78,7 +159,7 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     const byPlayer = usage.get(championId) ?? new Map<string, BanUsage>();
     let u = byPlayer.get(player);
     if (!u) {
-      u = { player, seasonGames: 0, trainingGames: 0, trainingWins: 0 };
+      u = { player, seasonGames: 0, seasonWins: 0, trainingGames: 0, trainingWins: 0 };
       byPlayer.set(player, u);
     }
     usage.set(championId, byPlayer);
@@ -95,7 +176,9 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     }
     for (const c of season.value) {
       meta.set(c.id, { id: c.id, name: c.name, iconUrl: c.iconUrl });
-      entry(c.id, player.name).seasonGames += c.games;
+      const u = entry(c.id, player.name);
+      u.seasonGames += c.games;
+      u.seasonWins += c.wins;
     }
   });
 
@@ -118,10 +201,11 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
   }
 
   const toChampion = (id: string): BanChampion => {
-    const players = [...(usage.get(id)?.values() ?? [])].sort((a, b) => total(b) - total(a));
-    const ref = meta.get(id)!;
+    const players = [...(usage.get(id)?.values() ?? [])].sort(
+      (a, b) => gamesOf(b) - gamesOf(a),
+    );
     return {
-      ...ref,
+      ...meta.get(id)!,
       usage: players,
       seasonGames: players.reduce((s, p) => s + p.seasonGames, 0),
       trainingGames: players.reduce((s, p) => s + p.trainingGames, 0),
@@ -129,14 +213,14 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     };
   };
 
-  // 1. Tier list
-  const tierIds = new Set<string>();
+  // Tier list: resolve os nomes e garante metadados mesmo sem uso no time.
+  const tierById = new Map<string, BanTier>();
   const tiers = await Promise.all(
     TIER_ORDER.map(async (tier) => {
       const champions = await Promise.all(
         TIER_LIST[tier].map(async (name): Promise<BanCandidate> => {
           const c = await resolveChampion(name);
-          tierIds.add(c.id);
+          tierById.set(c.id, tier);
           if (!meta.has(c.id)) {
             meta.set(c.id, { id: c.id, name: c.name, iconUrl: championIconUrl(c.version, c.id) });
           }
@@ -148,23 +232,20 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     }),
   );
 
-  const outsideTierList = [...usage.keys()].filter((id) => !tierIds.has(id)).map(toChampion);
+  const ranking = [...usage.keys()]
+    .map((id) => recommend(toChampion(id), tierById.get(id) ?? null))
+    .filter((r): r is BanRecommendation => r !== null)
+    .sort(
+      (a, b) =>
+        b.score - a.score ||
+        b.players.reduce((s, p) => s + p.games, 0) - a.players.reduce((s, p) => s + p.games, 0),
+    );
 
-  // 2. Vencem bastante nos treinos
-  const trainingStandouts = outsideTierList
-    .filter(
-      (c) =>
-        c.trainingGames >= TRAINING_MIN_GAMES &&
-        c.trainingWins / c.trainingGames >= TRAINING_MIN_WINRATE,
-    )
-    .sort((a, b) => b.trainingWins - a.trainingWins || b.trainingGames - a.trainingGames)
-    .slice(0, EXTRA_LIMIT);
-
-  // 3. Muitos jogos na soloq (algum jogador com volume relevante nele)
-  const soloqMostPlayed = outsideTierList
-    .filter((c) => c.usage.some((u) => u.seasonGames >= SOLOQ_MIN_PLAYER_GAMES))
-    .sort((a, b) => volume(b) - volume(a))
-    .slice(0, EXTRA_LIMIT);
-
-  return { team: data.team, tiers, trainingStandouts, soloqMostPlayed, unavailable };
+  return {
+    team: data.team,
+    primary: ranking.slice(0, PRIMARY_COUNT),
+    secondary: ranking.slice(PRIMARY_COUNT, PRIMARY_COUNT + SECONDARY_COUNT),
+    tiers,
+    unavailable,
+  };
 }

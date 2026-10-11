@@ -102,8 +102,9 @@ export type BanTier = "S" | "A" | "B";
 
 export interface BanUsage {
   player: string;
-  /** Jogos na temporada ranqueada (lista completa do OP.GG). */
+  /** Jogos e vitórias na temporada ranqueada (lista completa do OP.GG). */
   seasonGames: number;
+  seasonWins: number;
   trainingGames: number;
   /** Vitórias estimadas em treino: o cblow.xyz só informa o placar da série, não o vencedor de cada jogo. */
   trainingWins: number;
@@ -121,14 +122,27 @@ export interface BanCandidate extends BanChampion {
   tier: BanTier;
 }
 
+export type BanThreat = "alta" | "media" | "baixa";
+
+/** Um campeão recomendado para ban, com a nota e os motivos. */
+export interface BanRecommendation extends ChampionRef {
+  /** 0–100: 70% domínio do melhor jogador no campeão, 30% tier list. */
+  score: number;
+  threat: BanThreat;
+  /** Posição na tier list dos mais roubados, se estiver nela. */
+  tier: BanTier | null;
+  /** Jogadores do time que dominam o campeão, do mais ao menos relevante (máx. 3). */
+  players: (BanUsage & { games: number; winrate: number })[];
+}
+
 export interface TeamBans {
   team: { slug: string; name: string };
-  /** Campeões da tier list dos mais roubados, por tier. */
+  /** Os 5 bans mais prioritários. */
+  primary: BanRecommendation[];
+  /** Os 10 seguintes. */
+  secondary: BanRecommendation[];
+  /** Tier list completa, para consulta. */
   tiers: { tier: BanTier; champions: BanCandidate[] }[];
-  /** Fora da tier list: campeões que o time vence bastante nos treinos. */
-  trainingStandouts: BanChampion[];
-  /** Fora da tier list: campeões com muitos jogos na soloq. */
-  soloqMostPlayed: BanChampion[];
   /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */
   unavailable: string[];
 }
