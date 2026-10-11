@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 import { useState } from "react";
+import { TeamLogo } from "@/components/TeamLogo";
 import { Button } from "@/components/ui/button";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -60,10 +61,17 @@ export function TeamList() {
               <Link href={`/times/${team.slug}`} className="block">
                 <Card className="transition-colors hover:bg-muted/50">
                   <CardHeader>
-                    <CardTitle className="text-base">{team.name}</CardTitle>
-                    {team.presidents && (
-                      <CardDescription>Presidentes: {team.presidents}</CardDescription>
-                    )}
+                    <div className="flex items-center gap-3">
+                      <TeamLogo slug={team.slug} name={team.name} size={48} />
+                      <div className="min-w-0">
+                        <CardTitle className="truncate text-base">{team.name}</CardTitle>
+                        {team.presidents && (
+                          <CardDescription className="truncate">
+                            Presidentes: {team.presidents}
+                          </CardDescription>
+                        )}
+                      </div>
+                    </div>
                   </CardHeader>
                 </Card>
               </Link>

@@ -3,6 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 import { PlayerCard } from "@/components/PlayerCard";
+import { TeamLogo } from "@/components/TeamLogo";
 import { BansTab } from "@/components/team/BansTab";
 import { TrainingsTab } from "@/components/team/TrainingsTab";
 import { Button } from "@/components/ui/button";
@@ -59,13 +60,16 @@ export function TeamView({ slug }: { slug: string }) {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">{data.team.name}</h1>
-        {data.team.presidents && (
-          <p className="text-sm text-muted-foreground">
-            Presidentes: {data.team.presidents}
-          </p>
-        )}
+      <div className="flex items-center gap-4">
+        <TeamLogo slug={data.team.slug} name={data.team.name} size={64} />
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">{data.team.name}</h1>
+          {data.team.presidents && (
+            <p className="text-sm text-muted-foreground">
+              Presidentes: {data.team.presidents}
+            </p>
+          )}
+        </div>
       </div>
 
       <div

@@ -1,6 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
+import { TeamLogo } from "@/components/TeamLogo";
 import { ChampionIcon, ROLE_LABEL } from "@/components/team/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -63,11 +64,17 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
           )}
         </div>
         <CardTitle className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
-          <span>{team1.name}</span>
+          <span className="inline-flex items-center gap-2">
+            <TeamLogo slug={team1.slug} name={team1.name} size={28} />
+            {team1.name}
+          </span>
           <span className="tabular-nums text-muted-foreground">
             {team1.score} – {team2.score}
           </span>
-          <span>{team2.name}</span>
+          <span className="inline-flex items-center gap-2">
+            <TeamLogo slug={team2.slug} name={team2.name} size={28} />
+            {team2.name}
+          </span>
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">

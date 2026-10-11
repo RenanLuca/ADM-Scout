@@ -10,6 +10,7 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "ddragon.leagueoflegends.com", pathname: "/cdn/**" },
+      { protocol: "https", hostname: "cblow.xyz", pathname: "/times/**" },
     ],
   },
   turbopack: {
