@@ -6,6 +6,7 @@ import type {
   Team,
   TeamWithPlayers,
   TeamBans,
+  TeamChampionship,
   TeamTrainings,
 } from "./types";
 
@@ -42,3 +43,6 @@ export const fetchTeamTrainings = (slug: string) =>
   getJson<TeamTrainings>(`/api/times/${slug}/treinos`);
 
 export const fetchTeamBans = (slug: string) => getJson<TeamBans>(`/api/times/${slug}/bans`);
+
+export const fetchTeamChampionship = (slug: string) =>
+  getJson<TeamChampionship>(`/api/times/${slug}/campeonato`);

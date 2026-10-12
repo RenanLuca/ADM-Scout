@@ -95,11 +95,23 @@ export async function getTrainingStats(): Promise<TrainingStats> {
   const teamNames = new Map<string, string>();
   const acc = new Map<
     string,
-    { nick: string; teamSlug: string; roles: Map<Role, number>; games: number; champs: Map<string, number> }
+    {
+      nick: string;
+      teamSlug: string;
+      roles: Map<Role, number>;
+      games: number;
+      wins: number;
+      champs: Map<string, { games: number; wins: number }>;
+    }
   >();
   for (const t of trainings) {
     teamNames.set(t.team1.slug, t.team1.name);
     teamNames.set(t.team2.slug, t.team2.name);
+    // Cada jogo do time vale (vitórias da série ÷ jogos da série): exato em 3-0/2-0.
+    const share = (teamSlug: string) => {
+      const score = teamSlug === t.team1.slug ? t.team1.score : t.team2.score;
+      return t.games.length ? score / t.games.length : 0;
+    };
     for (const g of t.games) {
       for (const p of g.picks) {
         const key = `${p.teamSlug}|${p.nick}`;
@@ -108,11 +120,17 @@ export async function getTrainingStats(): Promise<TrainingStats> {
           teamSlug: p.teamSlug,
           roles: new Map(),
           games: 0,
+          wins: 0,
           champs: new Map(),
         };
+        const w = share(p.teamSlug);
         e.games += 1;
+        e.wins += w;
         if (p.role) e.roles.set(p.role, (e.roles.get(p.role) ?? 0) + 1);
-        e.champs.set(p.champion.id, (e.champs.get(p.champion.id) ?? 0) + 1);
+        const c = e.champs.get(p.champion.id) ?? { games: 0, wins: 0 };
+        c.games += 1;
+        c.wins += w;
+        e.champs.set(p.champion.id, c);
         acc.set(key, e);
       }
     }
@@ -128,8 +146,9 @@ export async function getTrainingStats(): Promise<TrainingStats> {
     teamName: teamNames.get(e.teamSlug) ?? e.teamSlug,
     role: [...e.roles.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
     games: e.games,
+    wins: e.wins,
     champions: [...e.champs.entries()]
-      .map(([id, games]) => ({ ...byId.get(id)!, games }))
+      .map(([id, c]) => ({ ...byId.get(id)!, games: c.games, wins: c.wins }))
       .sort((a, b) => b.games - a.games || a.name.localeCompare(b.name)),
   }));
 

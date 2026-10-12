@@ -41,7 +41,20 @@ export async function resolveChampion(
   opggName: string,
 ): Promise<{ id: string; name: string; version: string }> {
   const { version, idByName, nameById } = await getDdragon();
-  const id = idByName[normalize(opggName)] ?? opggName.replace(/[^A-Za-z0-9]/g, "");
+  const key = normalize(opggName);
+
+  let id = idByName[key];
+  if (!id && key.length >= 3) {
+    // Nomes abreviados do cblow.xyz ("Miss", "Yori"): vale se só um campeão começa assim.
+    const matches = new Set(
+      Object.keys(idByName)
+        .filter((k) => k.startsWith(key))
+        .map((k) => idByName[k]),
+    );
+    if (matches.size === 1) id = [...matches][0];
+  }
+  id ??= opggName.replace(/[^A-Za-z0-9]/g, "");
+
   return { id, name: nameById[id] ?? opggName, version };
 }
 

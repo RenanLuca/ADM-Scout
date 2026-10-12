@@ -84,7 +84,9 @@ export interface PlayerPool {
   teamName: string;
   role: Role | null;
   games: number;
-  champions: (ChampionRef & { games: number })[];
+  /** Vitórias estimadas: o cblow.xyz só informa o placar da série, não o vencedor de cada jogo. */
+  wins: number;
+  champions: (ChampionRef & { games: number; wins: number })[];
 }
 
 export interface TrainingStats {
@@ -105,9 +107,14 @@ export interface BanUsage {
   /** Jogos e vitórias na temporada ranqueada (lista completa do OP.GG). */
   seasonGames: number;
   seasonWins: number;
+  /** Fatia (0–1) das partidas ranqueadas do jogador feitas com este campeão. */
+  seasonShare: number;
   trainingGames: number;
   /** Vitórias estimadas em treino: o cblow.xyz só informa o placar da série, não o vencedor de cada jogo. */
   trainingWins: number;
+  /** Partidas oficiais do campeonato (vitórias exatas). */
+  championshipGames: number;
+  championshipWins: number;
 }
 
 export interface BanChampion extends ChampionRef {
@@ -126,13 +133,24 @@ export type BanThreat = "alta" | "media" | "baixa";
 
 /** Um campeão recomendado para ban, com a nota e os motivos. */
 export interface BanRecommendation extends ChampionRef {
-  /** 0–100: 70% domínio do melhor jogador no campeão, 30% tier list. */
+  /** 0–100: 45% domínio, 15% one trick e 40% tier list. */
   score: number;
   threat: BanThreat;
   /** Posição na tier list dos mais roubados, se estiver nela. */
   tier: BanTier | null;
   /** Jogadores do time que dominam o campeão, do mais ao menos relevante (máx. 3). */
-  players: (BanUsage & { games: number; winrate: number })[];
+  players: (BanUsage & {
+    /** Soloq + treinos + campeonato. */
+    games: number;
+    /** Treinos + jogos oficiais. */
+    competitiveGames: number;
+    /** WR só de treino + jogo oficial; null se o jogador não tem nenhum no campeão. */
+    competitiveWinrate: number | null;
+  })[];
+  /** Quantas vezes os adversários baniram esse campeão contra este time. */
+  bannedAgainst: number;
+  /** Jogador que concentra boa parte das suas partidas ranqueadas neste campeão. */
+  oneTrick: { player: string; share: number; games: number } | null;
 }
 
 export interface TeamBans {
@@ -145,4 +163,81 @@ export interface TeamBans {
   tiers: { tier: BanTier; champions: BanCandidate[] }[];
   /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */
   unavailable: string[];
+}
+
+// ---------------------------------------------------------------------------
+// Campeonato (partidas oficiais do CBLOW)
+// ---------------------------------------------------------------------------
+
+export interface ChampionshipTeam {
+  slug: string;
+  name: string;
+  tag: string;
+  score: number;
+}
+
+export interface ChampionshipLine {
+  nick: string;
+  /** slug do jogador no cblow.xyz */
+  slug: string;
+  role: Role | null;
+  teamSlug: string;
+  champion: ChampionRef;
+  kills: number;
+  deaths: number;
+  assists: number;
+  cs: number;
+}
+
+export interface ChampionshipCard {
+  name: string;
+  imageUrl: string | null;
+}
+
+export interface ChampionshipGame {
+  number: number;
+  winnerSlug: string;
+  blueSlug: string;
+  durationSec: number;
+  /** Bans feitos por cada time (chave = slug do time). Vazio quando não foram registrados. */
+  bans: Record<string, ChampionRef[]>;
+  cards: Record<string, ChampionshipCard | null>;
+  lines: ChampionshipLine[];
+}
+
+export interface ChampionshipMatch {
+  id: number;
+  stage: string;
+  scheduledAt: string;
+  bestOf: number;
+  team1: ChampionshipTeam;
+  team2: ChampionshipTeam;
+  games: ChampionshipGame[];
+}
+
+export interface PlayerChampionshipPool {
+  nick: string;
+  slug: string;
+  role: Role | null;
+  games: number;
+  wins: number;
+  kda: number;
+  champions: (ChampionRef & { games: number; wins: number; kda: number })[];
+}
+
+export interface BanCount {
+  champion: ChampionRef;
+  count: number;
+}
+
+export interface TeamChampionship {
+  team: { slug: string; name: string; tag: string };
+  record: { matches: number; wins: number; losses: number; avgDurationMin: number };
+  /** Partidas do time, da mais recente para a mais antiga. */
+  matches: ChampionshipMatch[];
+  pools: PlayerChampionshipPool[];
+  /** Campeões que o time baniu. */
+  bannedByTeam: BanCount[];
+  /** Campeões que os adversários baniram contra o time. */
+  bannedAgainst: BanCount[];
 }

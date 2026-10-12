@@ -5,16 +5,18 @@ import { useState } from "react";
 import { PlayerCard } from "@/components/PlayerCard";
 import { TeamLogo } from "@/components/TeamLogo";
 import { BansTab } from "@/components/team/BansTab";
+import { ChampionshipTab } from "@/components/team/ChampionshipTab";
 import { TrainingsTab } from "@/components/team/TrainingsTab";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchTeam } from "@/lib/api";
 import type { StatsMode } from "@/lib/types";
 
-type Tab = "history" | "trainings" | "bans";
+type Tab = "history" | "championship" | "trainings" | "bans";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "history", label: "Histórico" },
+  { value: "championship", label: "Campeonato" },
   { value: "trainings", label: "Treinos" },
   { value: "bans", label: "Possíveis bans" },
 ];
@@ -117,6 +119,7 @@ export function TeamView({ slug }: { slug: string }) {
         </div>
       )}
 
+      {tab === "championship" && <ChampionshipTab slug={slug} />}
       {tab === "trainings" && <TrainingsTab slug={slug} />}
       {tab === "bans" && <BansTab slug={slug} />}
     </div>

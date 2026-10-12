@@ -2,13 +2,21 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { TeamLogo } from "@/components/TeamLogo";
-import { ChampionIcon, ROLE_LABEL } from "@/components/team/shared";
+import {
+  ChampionIcon,
+  Metric,
+  ROLE_LABEL,
+  ResultBadge,
+  percent,
+  winrateTone,
+} from "@/components/team/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTeamTrainings } from "@/lib/api";
-import type { PlayerPool, Training } from "@/lib/types";
+import type { PlayerPool, Training, TrainingPick } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const dateFormat = new Intl.DateTimeFormat("pt-BR", {
   day: "2-digit",
@@ -18,28 +26,110 @@ const dateFormat = new Intl.DateTimeFormat("pt-BR", {
   timeZone: "America/Sao_Paulo",
 });
 
-function PoolRow({ pool }: { pool: PlayerPool }) {
+// ---------------------------------------------------------------------------
+// Resumo
+// ---------------------------------------------------------------------------
+
+function Summary({ trainings, slug }: { trainings: Training[]; slug: string }) {
+  let wins = 0;
+  let losses = 0;
+  let games = 0;
+  for (const t of trainings) {
+    const mine = t.team1.slug === slug ? t.team1 : t.team2;
+    const other = mine === t.team1 ? t.team2 : t.team1;
+    if (mine.score > other.score) wins += 1;
+    else if (mine.score < other.score) losses += 1;
+    games += t.games.length;
+  }
+
   return (
-    <li className="space-y-2 py-3 first:pt-0 last:pb-0">
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-        <span className="text-sm font-medium">{pool.nick}</span>
-        {pool.role && <Badge variant="secondary">{ROLE_LABEL[pool.role]}</Badge>}
-        <span className="text-xs text-muted-foreground">
-          {pool.games} {pool.games === 1 ? "jogo" : "jogos"}
-        </span>
+    <Card>
+      <CardContent className="grid grid-cols-3 gap-4">
+        <Metric label="Treinos" value={String(trainings.length)} size="lg" />
+        <div>
+          <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+            Vitórias – derrotas
+          </p>
+          <p className="text-xl font-semibold tabular-nums leading-tight">
+            <span className="text-emerald-400">{wins}</span>
+            <span className="text-muted-foreground"> – </span>
+            <span className="text-rose-400">{losses}</span>
+          </p>
+        </div>
+        <Metric label="Jogos" value={String(games)} size="lg" />
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Campeões por jogador
+// ---------------------------------------------------------------------------
+
+function ChampionTile({ c }: { c: PlayerPool["champions"][number] }) {
+  const winrate = c.games ? c.wins / c.games : 0;
+
+  return (
+    <li className="space-y-3 rounded-xl bg-muted/40 p-3 ring-1 ring-foreground/5">
+      <div className="flex items-center gap-3">
+        <ChampionIcon champion={c} size={48} className="rounded-lg" />
+        <p className="min-w-0 flex-1 truncate text-sm font-semibold">{c.name}</p>
       </div>
-      <ul className="flex flex-wrap gap-2">
-        {pool.champions.map((c) => (
-          <li
-            key={c.id}
-            className="flex items-center gap-1.5 rounded-lg bg-muted/50 py-1 pl-1 pr-2 text-xs"
-          >
-            <ChampionIcon champion={c} size={24} />
-            <span>{c.name}</span>
-            <span className="tabular-nums text-muted-foreground">×{c.games}</span>
-          </li>
-        ))}
-      </ul>
+      <div className="grid grid-cols-2 gap-2 border-t border-foreground/10 pt-2">
+        <Metric label="Jogos" value={String(c.games)} />
+        <Metric label="WR ≈" value={percent(winrate)} tone={winrateTone(winrate)} />
+      </div>
+    </li>
+  );
+}
+
+function PlayerPoolCard({ pool }: { pool: PlayerPool }) {
+  const winrate = pool.games ? pool.wins / pool.games : 0;
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <CardTitle className="truncate text-base">{pool.nick}</CardTitle>
+            {pool.role && (
+              <Badge variant="secondary" className="mt-1">
+                {ROLE_LABEL[pool.role]}
+              </Badge>
+            )}
+          </div>
+          <div className="flex shrink-0 gap-4 text-right">
+            <Metric label="Jogos" value={String(pool.games)} />
+            <Metric label="WR ≈" value={percent(winrate)} tone={winrateTone(winrate)} />
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent>
+        <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {pool.champions.map((c) => (
+            <ChampionTile key={c.id} c={c} />
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Treinos
+// ---------------------------------------------------------------------------
+
+function PickRow({ pick }: { pick: TrainingPick }) {
+  return (
+    <li className="flex items-center gap-3">
+      <ChampionIcon champion={pick.champion} size={36} className="rounded-lg" />
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-semibold">{pick.champion.name}</p>
+        <p className="truncate text-xs text-muted-foreground">
+          {pick.nick}
+          {pick.role && ` · ${ROLE_LABEL[pick.role]}`}
+        </p>
+      </div>
     </li>
   );
 }
@@ -48,7 +138,7 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
   const { team1, team2 } = training;
   const mine = team1.slug === teamSlug ? team1 : team2;
   const other = mine === team1 ? team2 : team1;
-  const result = mine.score === other.score ? null : mine.score > other.score ? "V" : "D";
+  const result = mine.score === other.score ? null : mine.score > other.score;
 
   return (
     <Card>
@@ -57,48 +147,51 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
           <p className="text-xs text-muted-foreground">
             {dateFormat.format(new Date(training.playedAt))}
           </p>
-          {result && (
-            <Badge variant={result === "V" ? "secondary" : "outline"}>
-              {result === "V" ? "Vitória" : "Derrota"}
-            </Badge>
-          )}
+          {result !== null && <ResultBadge won={result} />}
         </div>
-        <CardTitle className="flex flex-wrap items-center gap-x-3 gap-y-1 text-base">
-          <span className="inline-flex items-center gap-2">
-            <TeamLogo slug={team1.slug} name={team1.name} size={28} />
-            {team1.name}
-          </span>
-          <span className="tabular-nums text-muted-foreground">
-            {team1.score} – {team2.score}
-          </span>
-          <span className="inline-flex items-center gap-2">
-            <TeamLogo slug={team2.slug} name={team2.name} size={28} />
-            {team2.name}
-          </span>
-        </CardTitle>
+        <div className="flex items-center justify-center gap-4 pt-1">
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center">
+            <TeamLogo slug={team1.slug} name={team1.name} size={44} />
+            <p className="truncate text-sm font-semibold">{team1.name}</p>
+          </div>
+          <p className="text-2xl font-bold tabular-nums">
+            {team1.score}
+            <span className="px-1 text-muted-foreground">–</span>
+            {team2.score}
+          </p>
+          <div className="flex min-w-0 flex-1 flex-col items-center gap-1 text-center">
+            <TeamLogo slug={team2.slug} name={team2.name} size={44} />
+            <p className="truncate text-sm font-semibold">{team2.name}</p>
+          </div>
+        </div>
       </CardHeader>
-      <CardContent className="space-y-4">
+      <CardContent className="space-y-3">
         {training.games.map((game) => (
-          <div key={game.n} className="space-y-2">
-            <p className="text-xs font-medium text-muted-foreground">Jogo {game.n}</p>
-            <div className="grid gap-3 sm:grid-cols-2">
+          <div
+            key={game.n}
+            className="space-y-4 rounded-xl bg-muted/30 p-3 ring-1 ring-foreground/5"
+          >
+            <p className="text-xs font-semibold">Jogo {game.n}</p>
+            <div className="grid gap-5 sm:grid-cols-2">
               {[team1, team2].map((team) => (
-                <ul key={team.slug} className="space-y-1.5">
-                  {game.picks
-                    .filter((p) => p.teamSlug === team.slug)
-                    .map((p) => (
-                      <li key={`${p.nick}-${p.champion.id}`} className="flex items-center gap-2">
-                        <ChampionIcon champion={p.champion} size={28} />
-                        <div className="min-w-0 text-xs">
-                          <p className="truncate font-medium">{p.champion.name}</p>
-                          <p className="truncate text-muted-foreground">
-                            {p.role ? `${ROLE_LABEL[p.role]} · ` : ""}
-                            {p.nick}
-                          </p>
-                        </div>
-                      </li>
-                    ))}
-                </ul>
+                <div key={team.slug} className="space-y-3">
+                  <p
+                    className={cn(
+                      "flex items-center gap-2 border-b-2 pb-2 text-sm font-semibold",
+                      team.slug === teamSlug ? "border-foreground/40" : "border-foreground/10",
+                    )}
+                  >
+                    <TeamLogo slug={team.slug} name={team.name} size={20} />
+                    <span className="truncate">{team.name}</span>
+                  </p>
+                  <ul className="space-y-2">
+                    {game.picks
+                      .filter((p) => p.teamSlug === team.slug)
+                      .map((p) => (
+                        <PickRow key={`${p.nick}-${p.champion.id}`} pick={p} />
+                      ))}
+                  </ul>
+                </div>
               ))}
             </div>
           </div>
@@ -108,6 +201,8 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
   );
 }
 
+// ---------------------------------------------------------------------------
+
 export function TrainingsTab({ slug }: { slug: string }) {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["team-trainings", slug],
@@ -116,9 +211,12 @@ export function TrainingsTab({ slug }: { slug: string }) {
 
   if (isPending) {
     return (
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Skeleton className="h-80 rounded-xl" />
-        <Skeleton className="h-80 rounded-xl" />
+      <div className="space-y-4">
+        <Skeleton className="h-20 rounded-xl" />
+        <div className="grid gap-4 md:grid-cols-2">
+          <Skeleton className="h-64 rounded-xl" />
+          <Skeleton className="h-64 rounded-xl" />
+        </div>
       </div>
     );
   }
@@ -145,23 +243,26 @@ export function TrainingsTab({ slug }: { slug: string }) {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-10">
+      <Summary trainings={data.trainings} slug={slug} />
+
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Campeões por jogador</h2>
-        <Card>
-          <CardContent>
-            <ul className="divide-y divide-foreground/10">
-              {data.pools.map((p) => (
-                <PoolRow key={p.nick} pool={p} />
-              ))}
-            </ul>
-          </CardContent>
-        </Card>
+        <div>
+          <h2 className="text-lg font-semibold">Campeões por jogador</h2>
+          <p className="text-sm text-muted-foreground">
+            WR estimado: o cblow.xyz só informa o placar da série, não quem ganhou cada jogo.
+          </p>
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {data.pools.map((p) => (
+            <PlayerPoolCard key={p.nick} pool={p} />
+          ))}
+        </div>
       </section>
 
       <section className="space-y-3">
-        <h2 className="text-lg font-semibold">Treinos ({data.trainings.length})</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
+        <h2 className="text-lg font-semibold">Treinos</h2>
+        <div className="grid gap-4 xl:grid-cols-2">
           {data.trainings.map((t) => (
             <TrainingCard key={t.id} training={t} teamSlug={slug} />
           ))}
