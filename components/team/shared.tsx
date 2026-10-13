@@ -10,6 +10,32 @@ export const ROLE_LABEL: Record<Role, string> = {
   SUPPORT: "Suporte",
 };
 
+/** Separador de lane: nome em destaque, contagem e uma linha que corta a seção. */
+export function LaneHeading({
+  role,
+  count,
+  unit = "jogador",
+}: {
+  role: Role | null;
+  count: number;
+  /** Singular do que está sendo contado (ganha "es" ou "s" no plural). */
+  unit?: string;
+}) {
+  const plural = count === 1 ? unit : unit.endsWith("r") ? `${unit}es` : `${unit}s`;
+
+  return (
+    <div className="flex items-center gap-3">
+      <h3 className="rounded-md bg-foreground/10 px-2.5 py-1 text-xs font-bold uppercase tracking-wider">
+        {role ? ROLE_LABEL[role] : "Sem rota"}
+      </h3>
+      <span className="text-xs text-muted-foreground">
+        {count} {plural}
+      </span>
+      <span aria-hidden className="h-px flex-1 bg-foreground/10" />
+    </div>
+  );
+}
+
 export function ChampionIcon({
   champion,
   size = 28,

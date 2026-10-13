@@ -2,6 +2,7 @@ import { getTeam } from "./cblol";
 import { championIconUrl, resolveChampion } from "./ddragon";
 import { getTeamChampionship } from "./championship";
 import { getPlayerStats } from "./opgg";
+import { groupByLane } from "./lanes";
 import { getSeasonPool } from "./opgg-site";
 import { TIER_LIST, TIER_ORDER } from "./tierlist";
 import { getTeamTrainings } from "./trainings";
@@ -13,13 +14,14 @@ import type {
   BanTier,
   BanUsage,
   ChampionRef,
+  Role,
   TeamBans,
 } from "./types";
 
 // ---------------------------------------------------------------------------
 // Pontuação dos bans
 //
-// nota = 100 × (0,45 × domínio + 0,15 × one trick + 0,40 × tier list)
+// nota = 100 × (0,25 × domínio + 0,10 × one trick + 0,40 × tier list + 0,25 × campeonato)
 //                                                       tier: S = 40 pts, A = 26, B = 13
 //
 // domínio (0–1) = o melhor jogador do time no campeão, mais um bônus pequeno
@@ -35,6 +37,10 @@ import type {
 //   volume       = min(jogos na soloq / 150, 1)
 //   one trick    = concentração × volume          ex.: 1016 de 1100 jogos → 1,0
 //
+// campeonato (0–1) = o que o time fez com o campeão em partidas oficiais (time todo):
+//   pontos = vitórias × 1,0 + derrotas × 0,4        jogar já conta; vencer conta bem mais
+//   campeonato = min(pontos / 3, 1)                 3 vitórias (ou 2 vitórias + 1 derrota…) = 100%
+//
 // One trick tem nota mínima, independente da tier: quem concentra as partidas num
 // campeão é ameaça mesmo fora da tier list.
 //   se one trick ≥ 0,25:  nota mínima = 55 + 40 × one trick     (1,0 → 95; 0,5 → 75)
@@ -42,13 +48,22 @@ import type {
 
 const PRIMARY_COUNT = 5;
 const SECONDARY_COUNT = 10;
+/** Quantos campeões aparecem por lane na visão "Por lane". */
+const PER_LANE_COUNT = 3;
 /** Menos jogos que isso no total do time e o campeão nem entra na disputa. */
 const MIN_TEAM_GAMES = 3;
 
-const MASTERY_WEIGHT = 0.45;
-const ONE_TRICK_WEIGHT = 0.15;
+const MASTERY_WEIGHT = 0.25;
+const ONE_TRICK_WEIGHT = 0.1;
 const TIER_WEIGHT = 0.4;
+const OFFICIAL_WEIGHT = 0.25;
 const TIER_VALUE: Record<BanTier, number> = { S: 1, A: 0.65, B: 0.33 };
+
+/** Partida oficial: vitória vale mais que derrota, mas as duas contam. */
+const OFFICIAL_WIN_POINTS = 1;
+const OFFICIAL_LOSS_POINTS = 0.4;
+/** Pontos oficiais que já valem 100% do componente campeonato. */
+const OFFICIAL_FULL_POINTS = 3;
 
 /** Jogos no campeão que já valem 100% do volume. */
 const FULL_VOLUME_GAMES = 100;
@@ -99,6 +114,22 @@ function mastery(u: BanUsage): number {
   return clamp01(vol * factor);
 }
 
+/** Jogos e vitórias oficiais do time inteiro com o campeão. */
+function officialRecord(c: BanChampion): { games: number; wins: number } {
+  return c.usage.reduce(
+    (acc, u) => ({
+      games: acc.games + u.championshipGames,
+      wins: acc.wins + u.championshipWins,
+    }),
+    { games: 0, wins: 0 },
+  );
+}
+
+function officialEvidence({ games, wins }: { games: number; wins: number }): number {
+  const points = wins * OFFICIAL_WIN_POINTS + (games - wins) * OFFICIAL_LOSS_POINTS;
+  return clamp01(points / OFFICIAL_FULL_POINTS);
+}
+
 function oneTrickness(u: BanUsage): number {
   const concentration = clamp01((u.seasonShare - SHARE_FLOOR) / SHARE_SPAN);
   return concentration * clamp01(u.seasonGames / ONE_TRICK_FULL_GAMES);
@@ -112,6 +143,7 @@ function recommend(
   champion: BanChampion,
   tier: BanTier | null,
   bannedAgainst: number,
+  roleByNick: Map<string, Role | null>,
 ): BanRecommendation | null {
   if (volume(champion) < MIN_TEAM_GAMES) return null;
 
@@ -123,11 +155,13 @@ function recommend(
   const depth = Math.min(ranked.filter((r) => gamesOf(r.u) >= DEPTH_MIN_GAMES).length, 3) / 3;
   const domain = clamp01(best + DEPTH_BONUS * depth);
   const oneTrick = Math.max(0, ...champion.usage.map(oneTrickness));
+  const official = officialRecord(champion);
   const weighted =
     100 *
     (MASTERY_WEIGHT * domain +
       ONE_TRICK_WEIGHT * oneTrick +
-      TIER_WEIGHT * (tier ? TIER_VALUE[tier] : 0));
+      TIER_WEIGHT * (tier ? TIER_VALUE[tier] : 0) +
+      OFFICIAL_WEIGHT * officialEvidence(official));
   const floor =
     oneTrick >= OTP_FLOOR_MIN ? OTP_FLOOR_BASE + OTP_FLOOR_SPAN * oneTrick : 0;
   const score = Math.min(100, Math.max(weighted, floor));
@@ -143,13 +177,16 @@ function recommend(
     score: Math.round(score),
     threat: threatOf(score),
     tier,
+    lane: ranked[0] ? (roleByNick.get(ranked[0].u.player) ?? null) : null,
     players: ranked.slice(0, 3).map(({ u }) => ({
       ...u,
+      role: roleByNick.get(u.player) ?? null,
       games: gamesOf(u),
       competitiveGames: competitiveGames(u),
       competitiveWinrate: competitiveWinrate(u),
     })),
     bannedAgainst,
+    championship: official,
     oneTrick: otp ? { player: otp.player, share: otp.seasonShare, games: otp.seasonGames } : null,
   };
 }
@@ -214,17 +251,34 @@ async function loadSeason(
  * campeões mais roubados com o que cada jogador joga bem (temporada ranqueada
  * inteira + treinos + partidas do campeonato do próprio time). Devolve os 5 mais prioritários e os 10 seguintes.
  */
-export async function getTeamBans(slug: string): Promise<TeamBans | null> {
+export async function getTeamBans(
+  slug: string,
+  /** Escalação (slugs dos jogadores). Vazia/ausente = elenco inteiro. */
+  onlySlugs?: string[],
+): Promise<TeamBans | null> {
   const data = await getTeam(slug);
   if (!data) return null;
+
+  // Só os jogadores escalados entram no cálculo (a lista é validada contra o elenco).
+  const filtered = Boolean(onlySlugs && onlySlugs.length > 0);
+  const roster = filtered
+    ? data.players.filter((p) => onlySlugs!.includes(p.slug))
+    : data.players;
+  const rosterNicks = new Set(roster.map((p) => p.name));
+  const rosterSlugs = new Set(roster.map((p) => p.slug));
 
   const [trainings, championship, seasons] = await Promise.all([
     getTeamTrainings(slug),
     getTeamChampionship(slug),
-    Promise.allSettled(data.players.map((p) => loadSeason(p.riotId, data.team.name))),
+    Promise.allSettled(roster.map((p) => loadSeason(p.riotId, data.team.name))),
   ]);
 
   const meta = new Map<string, ChampionRef>();
+  // Rota de cada jogador pelo nick: cadastro do cblow.xyz e, na falta, a rota jogada no campeonato/treino.
+  const roleByNick = new Map<string, Role | null>();
+  for (const p of trainings?.pools ?? []) roleByNick.set(p.nick, p.role);
+  for (const p of championship.pools) roleByNick.set(p.nick, p.role);
+  for (const p of data.players) roleByNick.set(p.name, p.role);
   // championId (ddragon) → jogador → uso
   const usage = new Map<string, Map<string, BanUsage>>();
   const entry = (championId: string, player: string): BanUsage => {
@@ -249,7 +303,7 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
 
   // Temporada ranqueada inteira (OP.GG)
   const unavailable: string[] = [];
-  data.players.forEach((player, i) => {
+  roster.forEach((player, i) => {
     const season = seasons[i];
     if (season.status === "rejected" || !season.value) {
       unavailable.push(player.name);
@@ -274,6 +328,7 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
     for (const g of t.games) {
       for (const p of g.picks) {
         if (p.teamSlug !== slug) continue;
+        if (filtered && !rosterNicks.has(p.nick)) continue;
         meta.set(p.champion.id, p.champion);
         const u = entry(p.champion.id, p.nick);
         u.trainingGames += 1;
@@ -284,6 +339,7 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
 
   // Campeonato: partidas oficiais, com vitória exata por jogo.
   for (const p of championship.pools) {
+    if (filtered && !rosterSlugs.has(p.slug) && !rosterNicks.has(p.nick)) continue;
     for (const c of p.champions) {
       meta.set(c.id, { id: c.id, name: c.name, iconUrl: c.iconUrl });
       const u = entry(c.id, p.nick);
@@ -329,7 +385,9 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
   );
 
   const ranking = [...usage.keys()]
-    .map((id) => recommend(toChampion(id), tierById.get(id) ?? null, bannedAgainstById.get(id) ?? 0))
+    .map((id) =>
+      recommend(toChampion(id), tierById.get(id) ?? null, bannedAgainstById.get(id) ?? 0, roleByNick),
+    )
     .filter((r): r is BanRecommendation => r !== null)
     .sort(
       (a, b) =>
@@ -337,10 +395,19 @@ export async function getTeamBans(slug: string): Promise<TeamBans | null> {
         b.players.reduce((s, p) => s + p.games, 0) - a.players.reduce((s, p) => s + p.games, 0),
     );
 
+  // Melhores bans por lane (a lane é a de quem mais domina o campeão).
+  const byLane = groupByLane(ranking.map((rec) => ({ role: rec.lane, rec }))).map(
+    ({ role, items }) => ({
+      role,
+      champions: items.slice(0, PER_LANE_COUNT).map((i) => i.rec),
+    }),
+  );
+
   return {
     team: data.team,
     primary: ranking.slice(0, PRIMARY_COUNT),
     secondary: ranking.slice(PRIMARY_COUNT, PRIMARY_COUNT + SECONDARY_COUNT),
+    byLane,
     tiers,
     unavailable,
   };

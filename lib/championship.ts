@@ -1,6 +1,7 @@
 import { cacheLife } from "next/cache";
 import { apiGet, ROLES } from "./cblol";
 import { championIconUrl, resolveChampion } from "./ddragon";
+import { laneIndex } from "./lanes";
 import type {
   BanCount,
   ChampionRef,
@@ -195,7 +196,7 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
     {
       nick: string;
       slug: string;
-      roles: Map<Role, number>;
+      role: Role | null;
       games: number;
       wins: number;
       k: number;
@@ -224,10 +225,12 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
 
       for (const l of g.lines) {
         if (l.teamSlug !== slug) continue;
-        const p = byPlayer.get(l.slug) ?? {
+        // O campeonato é poli-lane: o mesmo jogador vira um card por lane jogada.
+        const playerKey = `${l.slug}|${l.role ?? "none"}`;
+        const p = byPlayer.get(playerKey) ?? {
           nick: l.nick,
           slug: l.slug,
-          roles: new Map(),
+          role: l.role,
           games: 0,
           wins: 0,
           k: 0,
@@ -240,7 +243,6 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
         p.k += l.kills;
         p.d += l.deaths;
         p.a += l.assists;
-        if (l.role) p.roles.set(l.role, (p.roles.get(l.role) ?? 0) + 1);
 
         const c = p.champs.get(l.champion.id) ?? {
           ref: l.champion,
@@ -256,7 +258,7 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
         c.d += l.deaths;
         c.a += l.assists;
         p.champs.set(l.champion.id, c);
-        byPlayer.set(l.slug, p);
+        byPlayer.set(playerKey, p);
       }
     }
   }
@@ -265,7 +267,7 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
     .map((p) => ({
       nick: p.nick,
       slug: p.slug,
-      role: [...p.roles.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+      role: p.role,
       games: p.games,
       wins: p.wins,
       kda: kdaOf(p.k, p.d, p.a),
@@ -278,7 +280,12 @@ export async function getTeamChampionship(slug: string): Promise<TeamChampionshi
         }))
         .sort((a, b) => b.games - a.games || b.wins - a.wins),
     }))
-    .sort((a, b) => b.games - a.games || a.nick.localeCompare(b.nick));
+    .sort(
+      (a, b) =>
+        laneIndex(a.role) - laneIndex(b.role) ||
+        b.games - a.games ||
+        a.nick.localeCompare(b.nick),
+    );
 
   return {
     team: {

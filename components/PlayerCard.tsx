@@ -126,7 +126,6 @@ export function PlayerCard({
             )}
           </div>
           <div className="flex shrink-0 gap-1">
-            {player.reserve && <Badge variant="outline">Reserva</Badge>}
             {player.role && <Badge variant="secondary">{ROLE_LABEL[player.role]}</Badge>}
           </div>
         </div>

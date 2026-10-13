@@ -10,7 +10,6 @@ export interface Player {
   slug: string;
   name: string;
   role: Role | null;
-  reserve: boolean;
   /** "Nome#TAG", extraído do link do OP.GG do cblow.xyz (ou do override em data/riot-ids.json). */
   riotId: string | null;
   opggUrl: string | null;
@@ -133,15 +132,19 @@ export type BanThreat = "alta" | "media" | "baixa";
 
 /** Um campeão recomendado para ban, com a nota e os motivos. */
 export interface BanRecommendation extends ChampionRef {
-  /** 0–100: 45% domínio, 15% one trick e 40% tier list. */
+  /** 0–100: 25% domínio, 10% one trick, 40% tier list e 25% campeonato. */
   score: number;
   threat: BanThreat;
   /** Posição na tier list dos mais roubados, se estiver nela. */
   tier: BanTier | null;
+  /** Lane do jogador que mais domina o campeão. */
+  lane: Role | null;
   /** Jogadores do time que dominam o campeão, do mais ao menos relevante (máx. 3). */
   players: (BanUsage & {
     /** Soloq + treinos + campeonato. */
     games: number;
+    /** Rota cadastrada do jogador no cblow.xyz. */
+    role: Role | null;
     /** Treinos + jogos oficiais. */
     competitiveGames: number;
     /** WR só de treino + jogo oficial; null se o jogador não tem nenhum no campeão. */
@@ -149,6 +152,8 @@ export interface BanRecommendation extends ChampionRef {
   })[];
   /** Quantas vezes os adversários baniram esse campeão contra este time. */
   bannedAgainst: number;
+  /** Partidas oficiais do campeonato com este campeão, somando o time todo. */
+  championship: { games: number; wins: number };
   /** Jogador que concentra boa parte das suas partidas ranqueadas neste campeão. */
   oneTrick: { player: string; share: number; games: number } | null;
 }
@@ -159,6 +164,8 @@ export interface TeamBans {
   primary: BanRecommendation[];
   /** Os 10 seguintes. */
   secondary: BanRecommendation[];
+  /** Melhores bans de cada lane (pela lane de quem mais domina o campeão). */
+  byLane: { role: Role | null; champions: BanRecommendation[] }[];
   /** Tier list completa, para consulta. */
   tiers: { tier: BanTier; champions: BanCandidate[] }[];
   /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */

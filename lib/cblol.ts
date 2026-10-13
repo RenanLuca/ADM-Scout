@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { laneIndex } from "./lanes";
 import { opggUrlFor, riotIdFromOpgg, getRiotIdOverride } from "./riot-ids";
 import type { Player, Role, Team, TeamWithPlayers } from "./types";
 
@@ -27,7 +28,6 @@ interface ApiPlayer {
   slug: string;
   nick: string;
   role: string;
-  reserve: boolean;
   opggUrl: string | null;
 }
 
@@ -81,20 +81,14 @@ export async function getTeam(slug: string): Promise<TeamWithPlayers | null> {
       slug: p.slug,
       name: p.nick,
       role: ROLES[p.role] ?? null,
-      reserve: p.reserve,
       riotId,
       // Com override o link do cblow.xyz pode estar desatualizado: monta a partir do Riot ID.
       opggUrl: riotId ? (override ? opggUrlFor(riotId) : (p.opggUrl ?? opggUrlFor(riotId))) : null,
     };
   });
 
-  // Titulares primeiro, depois reservas; dentro de cada grupo, ordem de rota.
-  const order: Role[] = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
-  players.sort(
-    (a, b) =>
-      Number(a.reserve) - Number(b.reserve) ||
-      (a.role ? order.indexOf(a.role) : 9) - (b.role ? order.indexOf(b.role) : 9),
-  );
+  // Ordem de lane (Top, Jungle, Mid, ADC, Suporte); dentro da lane, por nick.
+  players.sort((a, b) => laneIndex(a.role) - laneIndex(b.role) || a.name.localeCompare(b.name));
 
   return { team: data.team, players };
 }

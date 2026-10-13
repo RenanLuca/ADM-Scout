@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { TeamLogo } from "@/components/TeamLogo";
 import {
   ChampionIcon,
+  LaneHeading,
   Metric,
   ROLE_LABEL,
   ResultBadge,
@@ -14,7 +15,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type Lineup } from "@/components/team/lineup";
 import { fetchTeamTrainings } from "@/lib/api";
+import { groupByLane, laneIndex } from "@/lib/lanes";
 import type { PlayerPool, Training, TrainingPick } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -119,9 +122,9 @@ function PlayerPoolCard({ pool }: { pool: PlayerPool }) {
 // Treinos
 // ---------------------------------------------------------------------------
 
-function PickRow({ pick }: { pick: TrainingPick }) {
+function PickRow({ pick, dimmed }: { pick: TrainingPick; dimmed?: boolean }) {
   return (
-    <li className="flex items-center gap-3">
+    <li className={cn("flex items-center gap-3", dimmed && "opacity-40")}>
       <ChampionIcon champion={pick.champion} size={36} className="rounded-lg" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{pick.champion.name}</p>
@@ -134,7 +137,15 @@ function PickRow({ pick }: { pick: TrainingPick }) {
   );
 }
 
-function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: string }) {
+function TrainingCard({
+  training,
+  teamSlug,
+  lineup,
+}: {
+  training: Training;
+  teamSlug: string;
+  lineup?: Lineup;
+}) {
   const { team1, team2 } = training;
   const mine = team1.slug === teamSlug ? team1 : team2;
   const other = mine === team1 ? team2 : team1;
@@ -187,8 +198,15 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
                   <ul className="space-y-2">
                     {game.picks
                       .filter((p) => p.teamSlug === team.slug)
+                      .sort((a, b) => laneIndex(a.role) - laneIndex(b.role))
                       .map((p) => (
-                        <PickRow key={`${p.nick}-${p.champion.id}`} pick={p} />
+                        <PickRow
+                          key={`${p.nick}-${p.champion.id}`}
+                          pick={p}
+                          dimmed={Boolean(
+                            lineup?.active && p.teamSlug === teamSlug && !lineup.nicks.has(p.nick),
+                          )}
+                        />
                       ))}
                   </ul>
                 </div>
@@ -203,7 +221,7 @@ function TrainingCard({ training, teamSlug }: { training: Training; teamSlug: st
 
 // ---------------------------------------------------------------------------
 
-export function TrainingsTab({ slug }: { slug: string }) {
+export function TrainingsTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["team-trainings", slug],
     queryFn: () => fetchTeamTrainings(slug),
@@ -242,6 +260,9 @@ export function TrainingsTab({ slug }: { slug: string }) {
     );
   }
 
+  // Com escalação ativa, os campeões por jogador mostram só os titulares marcados.
+  const pools = lineup?.active ? data.pools.filter((p) => lineup.nicks.has(p.nick)) : data.pools;
+
   return (
     <div className="space-y-10">
       <Summary trainings={data.trainings} slug={slug} />
@@ -253,18 +274,30 @@ export function TrainingsTab({ slug }: { slug: string }) {
             WR estimado: o cblow.xyz só informa o placar da série, não quem ganhou cada jogo.
           </p>
         </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {data.pools.map((p) => (
-            <PlayerPoolCard key={p.nick} pool={p} />
+        {pools.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Nenhum jogador da escalação participou de treinos.
+          </p>
+        )}
+        <div className="space-y-6">
+          {groupByLane(pools).map(({ role, items }) => (
+            <div key={role ?? "none"} className="space-y-3">
+              <LaneHeading role={role} count={items.length} />
+              <div className="grid gap-4 xl:grid-cols-2">
+                {items.map((p) => (
+                  <PlayerPoolCard key={`${p.nick}-${p.role}`} pool={p} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Treinos</h2>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 2xl:grid-cols-2">
           {data.trainings.map((t) => (
-            <TrainingCard key={t.id} training={t} teamSlug={slug} />
+            <TrainingCard key={t.id} training={t} teamSlug={slug} lineup={lineup} />
           ))}
         </div>
       </section>

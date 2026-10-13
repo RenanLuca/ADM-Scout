@@ -4,6 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { TeamLogo } from "@/components/TeamLogo";
 import {
   ChampionIcon,
+  LaneHeading,
   Metric,
   ROLE_LABEL,
   ResultBadge,
@@ -15,7 +16,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type Lineup } from "@/components/team/lineup";
 import { fetchTeamChampionship } from "@/lib/api";
+import { groupByLane, laneIndex } from "@/lib/lanes";
 import type {
   BanCount,
   ChampionshipGame,
@@ -171,11 +174,11 @@ function IconRow({ champions }: { champions: ChampionRef[] }) {
 // Partidas
 // ---------------------------------------------------------------------------
 
-function LineRow({ line }: { line: ChampionshipLine }) {
+function LineRow({ line, dimmed }: { line: ChampionshipLine; dimmed?: boolean }) {
   const kda = (line.kills + line.assists) / Math.max(line.deaths, 1);
 
   return (
-    <li className="flex items-center gap-3">
+    <li className={cn("flex items-center gap-3", dimmed && "opacity-40")}>
       <ChampionIcon champion={line.champion} size={36} className="rounded-lg" />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold">{line.champion.name}</p>
@@ -202,10 +205,12 @@ function GameBlock({
   match,
   game,
   teamSlug,
+  lineup,
 }: {
   match: ChampionshipMatch;
   game: ChampionshipGame;
   teamSlug: string;
+  lineup?: Lineup;
 }) {
   const sides = [match.team1, match.team2];
 
@@ -236,8 +241,15 @@ function GameBlock({
               <ul className="space-y-2">
                 {game.lines
                   .filter((l) => l.teamSlug === team.slug)
+                  .sort((a, b) => laneIndex(a.role) - laneIndex(b.role))
                   .map((l) => (
-                    <LineRow key={`${l.slug}-${l.champion.id}`} line={l} />
+                    <LineRow
+                      key={`${l.slug}-${l.champion.id}`}
+                      line={l}
+                      dimmed={Boolean(
+                        lineup?.active && l.teamSlug === teamSlug && !lineup.isSelected(l.slug),
+                      )}
+                    />
                   ))}
               </ul>
 
@@ -264,7 +276,15 @@ function GameBlock({
   );
 }
 
-function MatchCard({ match, teamSlug }: { match: ChampionshipMatch; teamSlug: string }) {
+function MatchCard({
+  match,
+  teamSlug,
+  lineup,
+}: {
+  match: ChampionshipMatch;
+  teamSlug: string;
+  lineup?: Lineup;
+}) {
   const mine = match.team1.slug === teamSlug ? match.team1 : match.team2;
   const other = mine === match.team1 ? match.team2 : match.team1;
   const result = mine.score === other.score ? null : mine.score > other.score;
@@ -296,7 +316,7 @@ function MatchCard({ match, teamSlug }: { match: ChampionshipMatch; teamSlug: st
       </CardHeader>
       <CardContent className="space-y-3">
         {match.games.map((g) => (
-          <GameBlock key={g.number} match={match} game={g} teamSlug={teamSlug} />
+          <GameBlock key={g.number} match={match} game={g} teamSlug={teamSlug} lineup={lineup} />
         ))}
       </CardContent>
     </Card>
@@ -305,7 +325,7 @@ function MatchCard({ match, teamSlug }: { match: ChampionshipMatch; teamSlug: st
 
 // ---------------------------------------------------------------------------
 
-export function ChampionshipTab({ slug }: { slug: string }) {
+export function ChampionshipTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["team-championship", slug],
     queryFn: () => fetchTeamChampionship(slug),
@@ -336,7 +356,11 @@ export function ChampionshipTab({ slug }: { slug: string }) {
     );
   }
 
-  const { record, matches, pools, bannedByTeam, bannedAgainst } = data;
+  const { record, matches, bannedByTeam, bannedAgainst } = data;
+  // Com escalação ativa, os campeões por jogador mostram só os titulares marcados.
+  const pools = lineup?.active
+    ? data.pools.filter((p) => lineup.isSelected(p.slug))
+    : data.pools;
 
   if (matches.length === 0) {
     return (
@@ -363,9 +387,21 @@ export function ChampionshipTab({ slug }: { slug: string }) {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Campeões por jogador</h2>
-        <div className="grid gap-4 lg:grid-cols-2">
-          {pools.map((p) => (
-            <PlayerPoolCard key={p.slug} pool={p} />
+        {pools.length === 0 && (
+          <p className="text-sm text-muted-foreground">
+            Nenhum jogador da escalação jogou partidas do campeonato ainda.
+          </p>
+        )}
+        <div className="space-y-6">
+          {groupByLane(pools).map(({ role, items }) => (
+            <div key={role ?? "none"} className="space-y-3">
+              <LaneHeading role={role} count={items.length} />
+              <div className="grid gap-4 xl:grid-cols-2">
+                {items.map((p) => (
+                  <PlayerPoolCard key={`${p.slug}-${p.role}`} pool={p} />
+                ))}
+              </div>
+            </div>
           ))}
         </div>
       </section>
@@ -401,9 +437,9 @@ export function ChampionshipTab({ slug }: { slug: string }) {
 
       <section className="space-y-3">
         <h2 className="text-lg font-semibold">Partidas</h2>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4 2xl:grid-cols-2">
           {matches.map((m) => (
-            <MatchCard key={m.id} match={m} teamSlug={slug} />
+            <MatchCard key={m.id} match={m} teamSlug={slug} lineup={lineup} />
           ))}
         </div>
       </section>

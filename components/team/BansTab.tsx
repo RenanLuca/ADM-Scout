@@ -3,11 +3,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
-import { ChampionIcon, Metric, winrateTone } from "@/components/team/shared";
+import {
+  ChampionIcon,
+  LaneHeading,
+  Metric,
+  ROLE_LABEL,
+  winrateTone,
+} from "@/components/team/shared";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { type Lineup } from "@/components/team/lineup";
 import { fetchTeamBans } from "@/lib/api";
 import type {
   BanChampion,
@@ -162,6 +169,17 @@ function BanRow({
             </p>
             {rec.tier && <TierBadge tier={rec.tier} />}
             {rec.oneTrick && <OneTrickBadge player={rec.oneTrick.player} share={rec.oneTrick.share} />}
+            {rec.championship.games > 0 && (
+              <span
+                title="Partidas oficiais do campeonato com este campeão (time todo)"
+                className={cn(
+                  "inline-flex items-center rounded-md bg-muted/60 px-1.5 py-0.5 text-xs font-semibold",
+                  winrateTone(rec.championship.wins / rec.championship.games),
+                )}
+              >
+                Campeonato {rec.championship.wins}V {rec.championship.games - rec.championship.wins}D
+              </span>
+            )}
             {prominent && (
               <span
                 className={cn(
@@ -176,6 +194,11 @@ function BanRow({
 
           {main && (
             <div className="flex flex-wrap items-center gap-1.5">
+              {main.role && (
+                <span className="rounded bg-foreground/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide">
+                  {ROLE_LABEL[main.role]}
+                </span>
+              )}
               <span className="text-sm font-medium">{main.player}</span>
               {main.seasonGames > 0 && <Chip label="Soloq" value={`${main.seasonGames}`} />}
               {official !== null && (
@@ -287,11 +310,13 @@ function TierListRow({ champion }: { champion: BanChampion }) {
 
 // ---------------------------------------------------------------------------
 
-export function BansTab({ slug }: { slug: string }) {
+export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
+  const [view, setView] = useState<"general" | "lane">("general");
   const { data, error, isPending, isFetching, refetch } = useQuery({
-    queryKey: ["team-bans", slug],
-    queryFn: () => fetchTeamBans(slug),
+    // A escalação muda o cálculo no servidor, então entra na chave do cache.
+    queryKey: ["team-bans", slug, lineup?.active ? lineup.slugs : []],
+    queryFn: () => fetchTeamBans(slug, lineup?.active ? lineup.slugs : []),
   });
 
   if (isPending) {
@@ -320,7 +345,10 @@ export function BansTab({ slug }: { slug: string }) {
     );
   }
 
-  const all = [...data.primary, ...data.secondary];
+  const all =
+    view === "lane"
+      ? data.byLane.flatMap((g) => g.champions)
+      : [...data.primary, ...data.secondary];
   const allOpen = all.length > 0 && all.every((r) => open.has(r.id));
 
   const toggle = (id: string) =>
@@ -340,59 +368,103 @@ export function BansTab({ slug }: { slug: string }) {
         </p>
       )}
 
-      {all.length === 0 ? (
+      {data.primary.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Ainda não há dados suficientes deste time para sugerir bans.
         </p>
       ) : (
         <>
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div role="group" aria-label="Visão dos bans" className="flex gap-2">
+              <Button
+                size="sm"
+                variant={view === "general" ? "default" : "outline"}
+                aria-pressed={view === "general"}
+                onClick={() => setView("general")}
+              >
+                Ranking geral
+              </Button>
+              <Button
+                size="sm"
+                variant={view === "lane" ? "default" : "outline"}
+                aria-pressed={view === "lane"}
+                onClick={() => setView("lane")}
+              >
+                Por lane
+              </Button>
+            </div>
             <Button variant="outline" size="sm" onClick={toggleAll}>
               {allOpen ? "Recolher tudo" : "Expandir tudo"}
             </Button>
           </div>
 
-          <section className="space-y-3">
-            <div>
-              <h2 className="text-lg font-semibold">Banir primeiro</h2>
+          {view === "lane" ? (
+            <div className="space-y-8">
               <p className="text-sm text-muted-foreground">
-                Os {data.primary.length} campeões mais perigosos nas mãos deste time.
+                Os melhores bans de cada lane, pela lane de quem mais domina o campeão.
               </p>
-            </div>
-            <ul className="space-y-2">
-              {data.primary.map((rec, i) => (
-                <BanRow
-                  key={rec.id}
-                  rec={rec}
-                  rank={i + 1}
-                  open={open.has(rec.id)}
-                  onToggle={() => toggle(rec.id)}
-                  prominent
-                />
+              {data.byLane.map(({ role, champions }) => (
+                <section key={role ?? "none"} className="space-y-3">
+                  <LaneHeading role={role} count={champions.length} unit="campeão" />
+                  <ul className="space-y-2">
+                    {champions.map((rec, i) => (
+                      <BanRow
+                        key={rec.id}
+                        rec={rec}
+                        rank={i + 1}
+                        open={open.has(rec.id)}
+                        onToggle={() => toggle(rec.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
               ))}
-            </ul>
-          </section>
+            </div>
+          ) : (
+            <>
+              <section className="space-y-3">
+                <div>
+                  <h2 className="text-lg font-semibold">Banir primeiro</h2>
+                  <p className="text-sm text-muted-foreground">
+                    Os {data.primary.length} campeões mais perigosos nas mãos deste time.
+                  </p>
+                </div>
+                <ul className="space-y-2">
+                  {data.primary.map((rec, i) => (
+                    <BanRow
+                      key={rec.id}
+                      rec={rec}
+                      rank={i + 1}
+                      open={open.has(rec.id)}
+                      onToggle={() => toggle(rec.id)}
+                      prominent
+                    />
+                  ))}
+                </ul>
+              </section>
 
-          {data.secondary.length > 0 && (
-            <section className="space-y-3">
-              <div>
-                <h2 className="text-lg font-semibold">Bans secundários</h2>
-                <p className="text-sm text-muted-foreground">
-                  Para quando os principais forem banidos pelo adversário ou escolhidos antes.
-                </p>
-              </div>
-              <ul className="space-y-2">
-                {data.secondary.map((rec, i) => (
-                  <BanRow
-                    key={rec.id}
-                    rec={rec}
-                    rank={data.primary.length + i + 1}
-                    open={open.has(rec.id)}
-                    onToggle={() => toggle(rec.id)}
-                  />
-                ))}
-              </ul>
-            </section>
+              {data.secondary.length > 0 && (
+                <section className="space-y-3">
+                  <div>
+                    <h2 className="text-lg font-semibold">Bans secundários</h2>
+                    <p className="text-sm text-muted-foreground">
+                      Para quando os principais forem banidos pelo adversário ou escolhidos antes.
+                    </p>
+                  </div>
+                  <ul className="space-y-2">
+                    {data.secondary.map((rec, i) => (
+                      <BanRow
+                        key={rec.id}
+                        rec={rec}
+                        rank={data.primary.length + i + 1}
+                        open={open.has(rec.id)}
+                        onToggle={() => toggle(rec.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+            </>
           )}
         </>
       )}
@@ -425,12 +497,12 @@ export function BansTab({ slug }: { slug: string }) {
       </details>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Como a nota é calculada: 40% é a tier list (S vale 40 pontos, A 26 e B 13), 45% é o domínio
-        do melhor jogador do time no campeão e 15% é o fator one trick (quem concentra boa parte
-        das partidas ranqueadas em um só campeão). One tricks ainda têm nota mínima alta, mesmo
-        fora da tier list. O domínio vem da quantidade de jogos na soloq, em treinos e no
-        campeonato; o winrate só conta em treinos e jogos oficiais. Vitórias em treino são
-        estimadas, pois o cblow.xyz só informa o placar da série.
+        Como a nota é calculada: 40% é a tier list (S vale 40 pontos, A 26 e B 13), 25% é o que o
+        time fez com o campeão em partidas oficiais (cada vitória pesa mais que cada derrota), 25%
+        é o domínio do melhor jogador (jogos na soloq, treinos e campeonato) e 10% é o fator one
+        trick. One tricks ainda têm nota mínima alta, mesmo fora da tier list. O winrate só conta
+        em treinos e jogos oficiais; vitórias em treino são estimadas, pois o cblow.xyz só informa
+        o placar da série.
       </p>
     </div>
   );

@@ -42,7 +42,10 @@ export const fetchPlayerStats = (
 export const fetchTeamTrainings = (slug: string) =>
   getJson<TeamTrainings>(`/api/times/${slug}/treinos`);
 
-export const fetchTeamBans = (slug: string) => getJson<TeamBans>(`/api/times/${slug}/bans`);
+export const fetchTeamBans = (slug: string, players: string[] = []) =>
+  getJson<TeamBans>(
+    `/api/times/${slug}/bans${players.length ? `?players=${players.join(",")}` : ""}`,
+  );
 
 export const fetchTeamChampionship = (slug: string) =>
   getJson<TeamChampionship>(`/api/times/${slug}/campeonato`);

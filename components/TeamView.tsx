@@ -6,11 +6,15 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { TeamLogo } from "@/components/TeamLogo";
 import { BansTab } from "@/components/team/BansTab";
 import { ChampionshipTab } from "@/components/team/ChampionshipTab";
+import { LineupNotice, LineupPanel } from "@/components/team/LineupPanel";
 import { TrainingsTab } from "@/components/team/TrainingsTab";
+import { useLineup } from "@/components/team/lineup";
+import { LaneHeading } from "@/components/team/shared";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError, fetchTeam } from "@/lib/api";
-import type { StatsMode } from "@/lib/types";
+import { groupByLane } from "@/lib/lanes";
+import type { StatsMode, TeamWithPlayers } from "@/lib/types";
 
 type Tab = "history" | "championship" | "trainings" | "bans";
 
@@ -26,9 +30,102 @@ const MODES: { value: StatsMode; label: string }[] = [
   { value: "recent", label: "Últimas 20 partidas" },
 ];
 
-export function TeamView({ slug }: { slug: string }) {
+function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
   const [tab, setTab] = useState<Tab>("history");
   const [mode, setMode] = useState<StatsMode>("season");
+  const lineup = useLineup(slug, data.players);
+
+  const visiblePlayers = lineup.active
+    ? data.players.filter((p) => lineup.isSelected(p.slug))
+    : data.players;
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center gap-4">
+        <TeamLogo slug={data.team.slug} name={data.team.name} size={64} />
+        <div className="min-w-0">
+          <h1 className="text-2xl font-semibold tracking-tight">{data.team.name}</h1>
+          {data.team.presidents && (
+            <p className="text-sm text-muted-foreground">Presidentes: {data.team.presidents}</p>
+          )}
+        </div>
+      </div>
+
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[minmax(0,1fr)_18rem] lg:items-start lg:gap-8">
+        {/* A escalação fica visível em qualquer aba; no celular vem antes das abas. */}
+        <LineupPanel
+          players={data.players}
+          lineup={lineup}
+          className="order-first lg:sticky lg:top-4 lg:order-last"
+        />
+
+        <div className="min-w-0 space-y-6">
+          <div
+            role="tablist"
+            aria-label="Seções do time"
+            className="flex gap-1 border-b border-foreground/10"
+          >
+            {TABS.map((t) => (
+              <button
+                key={t.value}
+                role="tab"
+                aria-selected={tab === t.value}
+                onClick={() => setTab(t.value)}
+                className={
+                  tab === t.value
+                    ? "-mb-px whitespace-nowrap border-b-2 border-foreground px-3 py-2 text-sm font-medium sm:px-4"
+                    : "-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground sm:px-4"
+                }
+              >
+                {t.label}
+              </button>
+            ))}
+          </div>
+
+          <LineupNotice players={data.players} lineup={lineup} />
+
+          {tab === "history" && (
+            <div className="space-y-6">
+              <div
+                role="group"
+                aria-label="Período das estatísticas"
+                className="flex flex-wrap gap-2"
+              >
+                {MODES.map((m) => (
+                  <Button
+                    key={m.value}
+                    size="sm"
+                    variant={mode === m.value ? "default" : "outline"}
+                    aria-pressed={mode === m.value}
+                    onClick={() => setMode(m.value)}
+                  >
+                    {m.label}
+                  </Button>
+                ))}
+              </div>
+              {groupByLane(visiblePlayers).map(({ role, items }) => (
+                <section key={role ?? "none"} className="space-y-3">
+                  <LaneHeading role={role} count={items.length} />
+                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    {items.map((player) => (
+                      <PlayerCard key={player.slug} teamSlug={slug} player={player} mode={mode} />
+                    ))}
+                  </div>
+                </section>
+              ))}
+            </div>
+          )}
+
+          {tab === "championship" && <ChampionshipTab slug={slug} lineup={lineup} />}
+          {tab === "trainings" && <TrainingsTab slug={slug} lineup={lineup} />}
+          {tab === "bans" && <BansTab slug={slug} lineup={lineup} />}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+export function TeamView({ slug }: { slug: string }) {
   const { data, error, isPending, isFetching, refetch } = useQuery({
     queryKey: ["team", slug],
     queryFn: () => fetchTeam(slug),
@@ -37,8 +134,8 @@ export function TeamView({ slug }: { slug: string }) {
   if (isPending) {
     return (
       <div className="space-y-6">
-        <Skeleton className="h-9 w-64" />
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <Skeleton className="h-16 w-72" />
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-72 rounded-xl" />
           ))}
@@ -60,68 +157,5 @@ export function TeamView({ slug }: { slug: string }) {
     );
   }
 
-  return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <TeamLogo slug={data.team.slug} name={data.team.name} size={64} />
-        <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">{data.team.name}</h1>
-          {data.team.presidents && (
-            <p className="text-sm text-muted-foreground">
-              Presidentes: {data.team.presidents}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div
-        role="tablist"
-        aria-label="Seções do time"
-        className="flex gap-1 border-b border-foreground/10"
-      >
-        {TABS.map((t) => (
-          <button
-            key={t.value}
-            role="tab"
-            aria-selected={tab === t.value}
-            onClick={() => setTab(t.value)}
-            className={
-              tab === t.value
-                ? "-mb-px whitespace-nowrap border-b-2 border-foreground px-3 py-2 text-sm font-medium sm:px-4"
-                : "-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground sm:px-4"
-            }
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {tab === "history" && (
-        <div className="space-y-6">
-          <div role="group" aria-label="Período das estatísticas" className="flex flex-wrap gap-2">
-            {MODES.map((m) => (
-              <Button
-                key={m.value}
-                size="sm"
-                variant={mode === m.value ? "default" : "outline"}
-                aria-pressed={mode === m.value}
-                onClick={() => setMode(m.value)}
-              >
-                {m.label}
-              </Button>
-            ))}
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {data.players.map((player) => (
-              <PlayerCard key={player.slug} teamSlug={slug} player={player} mode={mode} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {tab === "championship" && <ChampionshipTab slug={slug} />}
-      {tab === "trainings" && <TrainingsTab slug={slug} />}
-      {tab === "bans" && <BansTab slug={slug} />}
-    </div>
-  );
+  return <TeamLayout slug={slug} data={data} />;
 }

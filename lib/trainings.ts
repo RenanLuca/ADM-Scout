@@ -1,6 +1,7 @@
 import { cacheLife } from "next/cache";
 import { apiGet, ROLES } from "./cblol";
 import { championIconUrl, resolveChampion } from "./ddragon";
+import { laneIndex } from "./lanes";
 import type {
   ChampionRef,
   PlayerPool,
@@ -32,8 +33,6 @@ interface RawPlayer {
   nick: string;
   team: { slug: string };
 }
-
-const ROLE_ORDER: Role[] = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
 
 /**
  * Treinos entre os times (picks por jogador em cada jogo) e o pool de campeões
@@ -91,14 +90,14 @@ export async function getTrainingStats(): Promise<TrainingStats> {
     })
     .sort((a, b) => b.playedAt.localeCompare(a.playedAt) || b.id - a.id);
 
-  // Pool por jogador (agrupado por time + nick).
+  // Pool por jogador e lane jogada (poli-lane: o mesmo jogador pode ter mais de um).
   const teamNames = new Map<string, string>();
   const acc = new Map<
     string,
     {
       nick: string;
       teamSlug: string;
-      roles: Map<Role, number>;
+      role: Role | null;
       games: number;
       wins: number;
       champs: Map<string, { games: number; wins: number }>;
@@ -114,11 +113,11 @@ export async function getTrainingStats(): Promise<TrainingStats> {
     };
     for (const g of t.games) {
       for (const p of g.picks) {
-        const key = `${p.teamSlug}|${p.nick}`;
+        const key = `${p.teamSlug}|${p.nick}|${p.role ?? "none"}`;
         const e = acc.get(key) ?? {
           nick: p.nick,
           teamSlug: p.teamSlug,
-          roles: new Map(),
+          role: p.role,
           games: 0,
           wins: 0,
           champs: new Map(),
@@ -126,7 +125,6 @@ export async function getTrainingStats(): Promise<TrainingStats> {
         const w = share(p.teamSlug);
         e.games += 1;
         e.wins += w;
-        if (p.role) e.roles.set(p.role, (e.roles.get(p.role) ?? 0) + 1);
         const c = e.champs.get(p.champion.id) ?? { games: 0, wins: 0 };
         c.games += 1;
         c.wins += w;
@@ -139,12 +137,12 @@ export async function getTrainingStats(): Promise<TrainingStats> {
   const byId = new Map<string, ChampionRef>();
   for (const c of champions.values()) byId.set(c.id, c);
 
-  const pools: PlayerPool[] = [...acc.entries()].map(([key, e]) => ({
+  const pools: PlayerPool[] = [...acc.values()].map((e) => ({
     nick: e.nick,
-    slug: slugByTeamAndNick.get(key) ?? null,
+    slug: slugByTeamAndNick.get(`${e.teamSlug}|${e.nick}`) ?? null,
     teamSlug: e.teamSlug,
     teamName: teamNames.get(e.teamSlug) ?? e.teamSlug,
-    role: [...e.roles.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? null,
+    role: e.role,
     games: e.games,
     wins: e.wins,
     champions: [...e.champs.entries()]
@@ -155,7 +153,7 @@ export async function getTrainingStats(): Promise<TrainingStats> {
   pools.sort(
     (a, b) =>
       a.teamName.localeCompare(b.teamName) ||
-      (a.role ? ROLE_ORDER.indexOf(a.role) : 9) - (b.role ? ROLE_ORDER.indexOf(b.role) : 9) ||
+      laneIndex(a.role) - laneIndex(b.role) ||
       b.games - a.games,
   );
 
