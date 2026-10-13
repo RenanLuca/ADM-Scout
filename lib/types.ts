@@ -160,10 +160,8 @@ export interface BanRecommendation extends ChampionRef {
 
 export interface TeamBans {
   team: { slug: string; name: string };
-  /** Os 5 bans mais prioritários. */
-  primary: BanRecommendation[];
-  /** Os 10 seguintes. */
-  secondary: BanRecommendation[];
+  /** Bans sugeridos (até 20), do mais ao menos prioritário. */
+  bans: BanRecommendation[];
   /** Melhores bans de cada lane (pela lane de quem mais domina o campeão). */
   byLane: { role: Role | null; champions: BanRecommendation[] }[];
   /** Tier list completa, para consulta. */

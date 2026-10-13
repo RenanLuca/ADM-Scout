@@ -46,8 +46,8 @@ import type {
 //   se one trick ≥ 0,25:  nota mínima = 55 + 40 × one trick     (1,0 → 95; 0,5 → 75)
 // ---------------------------------------------------------------------------
 
-const PRIMARY_COUNT = 5;
-const SECONDARY_COUNT = 10;
+/** Tamanho da lista de bans. */
+const BANS_COUNT = 20;
 /** Quantos campeões aparecem por lane na visão "Por lane". */
 const PER_LANE_COUNT = 3;
 /** Menos jogos que isso no total do time e o campeão nem entra na disputa. */
@@ -405,8 +405,7 @@ export async function getTeamBans(
 
   return {
     team: data.team,
-    primary: ranking.slice(0, PRIMARY_COUNT),
-    secondary: ranking.slice(PRIMARY_COUNT, PRIMARY_COUNT + SECONDARY_COUNT),
+    bans: ranking.slice(0, BANS_COUNT),
     byLane,
     tiers,
     unavailable,

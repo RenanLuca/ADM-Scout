@@ -133,13 +133,11 @@ function BanRow({
   rank,
   open,
   onToggle,
-  prominent,
 }: {
   rec: BanRecommendation;
   rank: number;
   open: boolean;
   onToggle: () => void;
-  prominent?: boolean;
 }) {
   const threat = THREAT[rec.threat];
   const main = rec.players[0];
@@ -160,11 +158,11 @@ function BanRow({
         <span className="w-6 pt-2 text-center text-base font-bold tabular-nums text-muted-foreground">
           {rank}
         </span>
-        <ChampionIcon champion={rec} size={prominent ? 56 : 48} className="rounded-lg" />
+        <ChampionIcon champion={rec} size={52} className="rounded-lg" />
 
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className={cn("font-semibold leading-tight", prominent ? "text-lg" : "text-base")}>
+            <p className="text-base font-semibold leading-tight">
               {rec.name}
             </p>
             {rec.tier && <TierBadge tier={rec.tier} />}
@@ -180,8 +178,7 @@ function BanRow({
                 Campeonato {rec.championship.wins}V {rec.championship.games - rec.championship.wins}D
               </span>
             )}
-            {prominent && (
-              <span
+            <span
                 className={cn(
                   "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1",
                   threat.className,
@@ -189,7 +186,6 @@ function BanRow({
               >
                 {threat.label}
               </span>
-            )}
           </div>
 
           {main && (
@@ -226,7 +222,7 @@ function BanRow({
 
         <div className="flex items-center gap-2 pt-0.5">
           <div className="text-right">
-            <p className={cn("font-bold tabular-nums leading-none", prominent ? "text-2xl" : "text-xl")}>
+            <p className="text-xl font-bold tabular-nums leading-none">
               {rec.score}
             </p>
             <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">nota</p>
@@ -348,7 +344,7 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   const all =
     view === "lane"
       ? data.byLane.flatMap((g) => g.champions)
-      : [...data.primary, ...data.secondary];
+      : data.bans;
   const allOpen = all.length > 0 && all.every((r) => open.has(r.id));
 
   const toggle = (id: string) =>
@@ -368,7 +364,7 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
         </p>
       )}
 
-      {data.primary.length === 0 ? (
+      {data.bans.length === 0 ? (
         <p className="text-sm text-muted-foreground">
           Ainda não há dados suficientes deste time para sugerir bans.
         </p>
@@ -424,46 +420,23 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
             <>
               <section className="space-y-3">
                 <div>
-                  <h2 className="text-lg font-semibold">Banir primeiro</h2>
+                  <h2 className="text-lg font-semibold">Bans</h2>
                   <p className="text-sm text-muted-foreground">
-                    Os {data.primary.length} campeões mais perigosos nas mãos deste time.
+                    {data.bans.length} campeões, do mais ao menos prioritário para este time.
                   </p>
                 </div>
                 <ul className="space-y-2">
-                  {data.primary.map((rec, i) => (
+                  {data.bans.map((rec, i) => (
                     <BanRow
                       key={rec.id}
                       rec={rec}
                       rank={i + 1}
                       open={open.has(rec.id)}
                       onToggle={() => toggle(rec.id)}
-                      prominent
                     />
                   ))}
                 </ul>
               </section>
-
-              {data.secondary.length > 0 && (
-                <section className="space-y-3">
-                  <div>
-                    <h2 className="text-lg font-semibold">Bans secundários</h2>
-                    <p className="text-sm text-muted-foreground">
-                      Para quando os principais forem banidos pelo adversário ou escolhidos antes.
-                    </p>
-                  </div>
-                  <ul className="space-y-2">
-                    {data.secondary.map((rec, i) => (
-                      <BanRow
-                        key={rec.id}
-                        rec={rec}
-                        rank={data.primary.length + i + 1}
-                        open={open.has(rec.id)}
-                        onToggle={() => toggle(rec.id)}
-                      />
-                    ))}
-                  </ul>
-                </section>
-              )}
             </>
           )}
         </>
