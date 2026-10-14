@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,7 +11,6 @@ function safeNext(raw: string | null): string {
 }
 
 export default function EntrarPage() {
-  const router = useRouter();
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -33,8 +31,9 @@ export default function EntrarPage() {
         return;
       }
       const next = safeNext(new URLSearchParams(window.location.search).get("next"));
-      router.replace(next);
-      router.refresh();
+      // Navegação completa de propósito: o cache do roteador pode ter guardado, enquanto você
+      // estava deslogado, o redirecionamento dos links do menu para /entrar.
+      window.location.replace(next);
     } finally {
       setBusy(false);
     }
