@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Suspense } from "react";
+import { TeamPageSkeleton } from "@/components/Skeletons";
 import { TeamView } from "@/components/TeamView";
 
 async function TeamContent({ params }: { params: PageProps<"/times/[slug]">["params"] }) {
@@ -16,7 +17,7 @@ export default function TeamPage(props: PageProps<"/times/[slug]">) {
       >
         ← Todos os times
       </Link>
-      <Suspense fallback={null}>
+      <Suspense fallback={<TeamPageSkeleton />}>
         <TeamContent params={props.params} />
       </Suspense>
     </main>

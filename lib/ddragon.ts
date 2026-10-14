@@ -1,4 +1,6 @@
 import { cacheLife } from "next/cache";
+import { getChampionLanes } from "./champion-lanes";
+import type { Role } from "./types";
 
 const BASE = "https://ddragon.leagueoflegends.com";
 
@@ -60,4 +62,26 @@ export async function resolveChampion(
 
 export function championIconUrl(version: string, championId: string): string {
   return `${BASE}/cdn/${version}/img/champion/${championId}.png`;
+}
+
+/**
+ * Todos os campeões (id do Data Dragon, nome em pt-BR, ícone e rotas), em ordem
+ * alfabética. Se a fonte de rotas estiver fora do ar, `lanes` vem vazio e a tela
+ * simplesmente não oferece o filtro por rota.
+ */
+export async function listChampions(): Promise<
+  { id: string; name: string; iconUrl: string; lanes: Role[] }[]
+> {
+  const [{ version, nameById }, lanesById] = await Promise.all([
+    getDdragon(),
+    getChampionLanes().catch(() => ({}) as Record<string, Role[]>),
+  ]);
+  return Object.entries(nameById)
+    .map(([id, name]) => ({
+      id,
+      name,
+      iconUrl: championIconUrl(version, id),
+      lanes: lanesById[id] ?? [],
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 }

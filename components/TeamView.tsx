@@ -1,7 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { useRef } from "react";
 import { PlayerCard } from "@/components/PlayerCard";
 import { TeamLogo } from "@/components/TeamLogo";
 import { BansTab } from "@/components/team/BansTab";
@@ -30,9 +31,44 @@ const MODES: { value: StatsMode; label: string }[] = [
   { value: "recent", label: "Últimas 20 partidas" },
 ];
 
+const MODE_PARAM: Record<StatsMode, string> = {
+  season: "temporada",
+  recent: "recentes",
+};
+
+/** Aba e período vivem na URL: dá para recarregar, compartilhar e voltar sem perder o lugar. */
+function useUrlState(slug: string) {
+  const params = useSearchParams();
+  const tab =
+    TABS.find((t) => t.value === params.get("aba"))?.value ?? "history";
+  const mode: StatsMode =
+    params.get("periodo") === MODE_PARAM.recent ? "recent" : "season";
+
+  const update = (key: string, value: string | null) => {
+    const next = new URLSearchParams(window.location.search);
+    if (value === null) next.delete(key);
+    else next.set(key, value);
+    const qs = next.toString();
+    // O Next sincroniza replaceState com useSearchParams, sem nova navegação.
+    window.history.replaceState(
+      null,
+      "",
+      qs ? `/times/${slug}?${qs}` : `/times/${slug}`,
+    );
+  };
+
+  return {
+    tab,
+    mode,
+    setTab: (t: Tab) => update("aba", t === "history" ? null : t),
+    setMode: (m: StatsMode) =>
+      update("periodo", m === "season" ? null : MODE_PARAM[m]),
+  };
+}
+
 function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
-  const [tab, setTab] = useState<Tab>("history");
-  const [mode, setMode] = useState<StatsMode>("season");
+  const { tab, mode, setTab, setMode } = useUrlState(slug);
+  const tabRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const lineup = useLineup(slug, data.players);
 
   const visiblePlayers = lineup.active
@@ -44,9 +80,13 @@ function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
       <div className="flex items-center gap-4">
         <TeamLogo slug={data.team.slug} name={data.team.name} size={64} />
         <div className="min-w-0">
-          <h1 className="text-2xl font-semibold tracking-tight">{data.team.name}</h1>
+          <h1 className="text-2xl font-semibold tracking-tight">
+            {data.team.name}
+          </h1>
           {data.team.presidents && (
-            <p className="text-sm text-muted-foreground">Presidentes: {data.team.presidents}</p>
+            <p className="text-sm text-muted-foreground">
+              Presidentes: {data.team.presidents}
+            </p>
           )}
         </div>
       </div>
@@ -65,16 +105,35 @@ function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
             aria-label="Seções do time"
             className="flex gap-1 border-b border-foreground/10"
           >
-            {TABS.map((t) => (
+            {TABS.map((t, i) => (
               <button
                 key={t.value}
+                ref={(el) => {
+                  tabRefs.current[i] = el;
+                }}
                 role="tab"
+                id={`tab-${t.value}`}
                 aria-selected={tab === t.value}
+                aria-controls="team-tabpanel"
+                tabIndex={tab === t.value ? 0 : -1}
                 onClick={() => setTab(t.value)}
+                onKeyDown={(e) => {
+                  const keys: Record<string, number> = {
+                    ArrowRight: (i + 1) % TABS.length,
+                    ArrowLeft: (i - 1 + TABS.length) % TABS.length,
+                    Home: 0,
+                    End: TABS.length - 1,
+                  };
+                  const target = keys[e.key];
+                  if (target === undefined) return;
+                  e.preventDefault();
+                  setTab(TABS[target].value);
+                  tabRefs.current[target]?.focus();
+                }}
                 className={
                   tab === t.value
-                    ? "-mb-px whitespace-nowrap border-b-2 border-foreground px-3 py-2 text-sm font-medium sm:px-4"
-                    : "-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2 text-sm text-muted-foreground hover:text-foreground sm:px-4"
+                    ? "-mb-px whitespace-nowrap border-b-2 border-foreground px-3 py-2.5 text-sm font-medium outline-none focus-visible:bg-muted/50 sm:px-4"
+                    : "-mb-px whitespace-nowrap border-b-2 border-transparent px-3 py-2.5 text-sm text-muted-foreground outline-none transition-colors hover:text-foreground focus-visible:bg-muted/50 sm:px-4"
                 }
               >
                 {t.label}
@@ -84,41 +143,58 @@ function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
 
           <LineupNotice players={data.players} lineup={lineup} />
 
-          {tab === "history" && (
-            <div className="space-y-6">
-              <div
-                role="group"
-                aria-label="Período das estatísticas"
-                className="flex flex-wrap gap-2"
-              >
-                {MODES.map((m) => (
-                  <Button
-                    key={m.value}
-                    size="sm"
-                    variant={mode === m.value ? "default" : "outline"}
-                    aria-pressed={mode === m.value}
-                    onClick={() => setMode(m.value)}
-                  >
-                    {m.label}
-                  </Button>
+          <div
+            key={tab}
+            id="team-tabpanel"
+            role="tabpanel"
+            aria-labelledby={`tab-${tab}`}
+            className="animate-in space-y-6 duration-200 fade-in-0 slide-in-from-bottom-1"
+          >
+            {tab === "history" && (
+              <div className="space-y-6">
+                <div
+                  role="group"
+                  aria-label="Período das estatísticas"
+                  className="flex flex-wrap gap-2"
+                >
+                  {MODES.map((m) => (
+                    <Button
+                      key={m.value}
+                      size="sm"
+                      variant={mode === m.value ? "default" : "outline"}
+                      aria-pressed={mode === m.value}
+                      onClick={() => setMode(m.value)}
+                    >
+                      {m.label}
+                    </Button>
+                  ))}
+                </div>
+                {groupByLane(visiblePlayers).map(({ role, items }) => (
+                  <section key={role ?? "none"} className="space-y-3">
+                    <LaneHeading role={role} count={items.length} />
+                    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                      {items.map((player) => (
+                        <PlayerCard
+                          key={player.slug}
+                          teamSlug={slug}
+                          player={player}
+                          mode={mode}
+                        />
+                      ))}
+                    </div>
+                  </section>
                 ))}
               </div>
-              {groupByLane(visiblePlayers).map(({ role, items }) => (
-                <section key={role ?? "none"} className="space-y-3">
-                  <LaneHeading role={role} count={items.length} />
-                  <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-                    {items.map((player) => (
-                      <PlayerCard key={player.slug} teamSlug={slug} player={player} mode={mode} />
-                    ))}
-                  </div>
-                </section>
-              ))}
-            </div>
-          )}
+            )}
 
-          {tab === "championship" && <ChampionshipTab slug={slug} lineup={lineup} />}
-          {tab === "trainings" && <TrainingsTab slug={slug} lineup={lineup} />}
-          {tab === "bans" && <BansTab slug={slug} lineup={lineup} />}
+            {tab === "championship" && (
+              <ChampionshipTab slug={slug} lineup={lineup} />
+            )}
+            {tab === "trainings" && (
+              <TrainingsTab slug={slug} lineup={lineup} />
+            )}
+            {tab === "bans" && <BansTab slug={slug} lineup={lineup} />}
+          </div>
         </div>
       </div>
     </div>
@@ -150,7 +226,11 @@ export function TeamView({ slug }: { slug: string }) {
         <p role="alert" className="text-sm text-rose-400">
           {error instanceof ApiError ? error.message : "Algo deu errado."}
         </p>
-        <Button variant="outline" disabled={isFetching} onClick={() => refetch()}>
+        <Button
+          variant="outline"
+          disabled={isFetching}
+          onClick={() => refetch()}
+        >
           {isFetching ? "Tentando…" : "Tentar de novo"}
         </Button>
       </div>

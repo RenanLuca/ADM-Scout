@@ -37,3 +37,28 @@ pelo slug do jogador (final de `/jogadores/<slug>`):
 ## Fora do MVP
 
 Picks do campeonato (o cblow.xyz não mostra campeões por partida), comparador, IA, filtros extras.
+
+## Nossos Picks
+
+Página `/nossos-picks`: quadro de campeões por jogador do **seu** time (AMIGOS DO MYLENNZY). Cada jogador
+tem um quadro por rota que joga; as categorias (Prioridade, Testando…) são criadas por você e valem para o
+time todo. Arraste campeões da paleta (filtrável por rota) para as colunas e entre elas; também dá para
+mover pelo menu de cada cartão. A tela de escalação mostra os picks de uma formação.
+
+### Banco de dados (Supabase + Prisma)
+
+- Tabelas: `players`, `pick_categories`, `pick_entries` (com RLS ligado, sem policies: só o Prisma acessa).
+- `DATABASE_URL`: string de conexão do Supabase (pooler, porta 6543).
+- O CLI do Prisma usa a mesma URL trocando a porta para 5432 (modo sessão), veja `prisma.config.ts`.
+  Se preferir, defina `DIRECT_URL`.
+- Aplicar migrações: `npm run db:migrate` (usa `prisma migrate deploy`, nunca reseta). Ver estado:
+  `npm run db:status`.
+- O client é gerado em `app/generated/prisma` no `postinstall` (não é versionado).
+
+### Senha do app
+
+`proxy.ts` pede senha em **todas** as páginas e APIs.
+
+- `APP_PASSWORD`: a senha. Defina no `.env.local` e nas variáveis de ambiente da Vercel.
+- Sem ela, em desenvolvimento nada é bloqueado; em **produção** tudo fica bloqueado (falha fechada).
+- A sessão é um cookie `httpOnly` de 30 dias; trocar a senha encerra todas as sessões.

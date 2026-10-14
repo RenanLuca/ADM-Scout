@@ -1,13 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { logout } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
-const LINKS = [{ href: "/", label: "Times" }];
+const LINKS = [
+  { href: "/", label: "Times" },
+  { href: "/nossos-picks", label: "Nossos Picks" },
+];
 
 export function SiteNav() {
   const pathname = usePathname();
+  const router = useRouter();
+  const onLogin = pathname.startsWith("/entrar");
+
+  async function signOut() {
+    try {
+      await logout();
+    } finally {
+      router.replace("/entrar");
+      router.refresh();
+    }
+  }
 
   return (
     <header className="border-b border-foreground/10">
@@ -18,7 +33,7 @@ export function SiteNav() {
         <Link href="/" className="mr-4 font-semibold tracking-tight">
           CBLOW Scout
         </Link>
-        {LINKS.map((l) => {
+        {!onLogin && LINKS.map((l) => {
           const active =
             l.href === "/"
               ? pathname === "/" || pathname.startsWith("/times")
@@ -39,6 +54,15 @@ export function SiteNav() {
             </Link>
           );
         })}
+        {!onLogin && (
+          <button
+            type="button"
+            onClick={signOut}
+            className="ml-auto rounded-md px-3 py-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Sair
+          </button>
+        )}
       </nav>
     </header>
   );

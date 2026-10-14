@@ -41,7 +41,7 @@ export interface PlayerStats {
   champions: ChampionStat[];
 }
 
-export type ApiErrorCode = "not_found" | "no_riot_id" | "unknown";
+export type ApiErrorCode = "not_found" | "no_riot_id" | "invalid" | "unauthorized" | "unknown";
 
 export interface ApiErrorBody {
   error: string;

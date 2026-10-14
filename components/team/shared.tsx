@@ -52,7 +52,10 @@ export function ChampionIcon({
       title={champion.name}
       width={size}
       height={size}
-      className={cn("shrink-0 rounded-md ring-1 ring-foreground/10", className)}
+      className={cn(
+        "shrink-0 animate-in rounded-md bg-muted/60 ring-1 ring-foreground/10 duration-300 fade-in-0",
+        className,
+      )}
       style={{ width: size, height: size }}
     />
   );

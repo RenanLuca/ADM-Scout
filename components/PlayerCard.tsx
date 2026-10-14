@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery, type UseQueryResult } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
 import { ExternalLink } from "lucide-react";
 import { ChampionRow } from "@/components/ChampionRow";
 import { Badge } from "@/components/ui/badge";
@@ -45,7 +45,7 @@ function StatsSkeleton() {
 }
 
 function PlayerStatsBody({ query }: { query: UseQueryResult<PlayerStats, Error> }) {
-  const { data, error, isPending, isFetching, refetch } = query;
+  const { data, error, isPending, isFetching, isPlaceholderData, refetch } = query;
 
   if (isPending) return <StatsSkeleton />;
 
@@ -70,7 +70,10 @@ function PlayerStatsBody({ query }: { query: UseQueryResult<PlayerStats, Error> 
   }
 
   return (
-    <div className="space-y-3">
+    <div
+      className={`space-y-3 transition-opacity duration-200 ${isPlaceholderData ? "opacity-50" : ""}`}
+      aria-busy={isPlaceholderData}
+    >
       <div className="flex items-center justify-between text-sm">
         <span className="font-medium">{data.elo}</span>
         <span className="text-xs text-muted-foreground">
@@ -105,6 +108,8 @@ export function PlayerCard({
     queryKey: ["player", teamSlug, player.slug, mode],
     queryFn: () => fetchPlayerStats(teamSlug, player.slug, mode),
     enabled: Boolean(player.riotId),
+    // Ao trocar de período, mantém os números antigos (esmaecidos) até os novos chegarem.
+    placeholderData: keepPreviousData,
   });
 
   // Se o jogador trocou de nick, mostramos o nome que o OP.GG realmente achou.

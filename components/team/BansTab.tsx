@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { ChevronDown } from "lucide-react";
 import { useState } from "react";
 import {
@@ -32,13 +32,23 @@ const TIER_STYLE: Record<BanTier, string> = {
 };
 
 const THREAT: Record<BanThreat, { label: string; className: string }> = {
-  alta: { label: "Ameaça alta", className: "bg-rose-500/15 text-rose-300 ring-rose-400/30" },
-  media: { label: "Ameaça média", className: "bg-amber-500/15 text-amber-300 ring-amber-400/30" },
-  baixa: { label: "Ameaça baixa", className: "bg-muted text-muted-foreground ring-foreground/10" },
+  alta: {
+    label: "Ameaça alta",
+    className: "bg-rose-500/15 text-rose-300 ring-rose-400/30",
+  },
+  media: {
+    label: "Ameaça média",
+    className: "bg-amber-500/15 text-amber-300 ring-amber-400/30",
+  },
+  baixa: {
+    label: "Ameaça baixa",
+    className: "bg-muted text-muted-foreground ring-foreground/10",
+  },
 };
 
 const pct = (n: number) => `${Math.round(n * 100)}%`;
-const ratio = (wins: number, games: number) => (games > 0 ? wins / games : null);
+const ratio = (wins: number, games: number) =>
+  games > 0 ? wins / games : null;
 const gamesLabel = (n: number) => `${n} ${n === 1 ? "jogo" : "jogos"}`;
 
 // ---------------------------------------------------------------------------
@@ -69,11 +79,23 @@ function OneTrickBadge({ player, share }: { player: string; share: number }) {
   );
 }
 
-function Chip({ label, value, tone }: { label: string; value: string; tone?: string }) {
+function Chip({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+}) {
   return (
     <span className="inline-flex items-baseline gap-1.5 rounded-md bg-muted/60 px-2 py-0.5 text-xs">
       <span className="text-muted-foreground">{label}</span>
-      <span className={cn("font-semibold tabular-nums", tone ?? "text-foreground")}>{value}</span>
+      <span
+        className={cn("font-semibold tabular-nums", tone ?? "text-foreground")}
+      >
+        {value}
+      </span>
     </span>
   );
 }
@@ -92,7 +114,11 @@ function UsageMetrics({ u }: { u: BanUsage }) {
         <Metric
           label="Soloq"
           value={gamesLabel(u.seasonGames)}
-          hint={u.seasonShare >= 0.15 ? `${pct(u.seasonShare)} das partidas dele` : undefined}
+          hint={
+            u.seasonShare >= 0.15
+              ? `${pct(u.seasonShare)} das partidas dele`
+              : undefined
+          }
         />
       )}
       {official !== null && (
@@ -141,7 +167,9 @@ function BanRow({
 }) {
   const threat = THREAT[rec.threat];
   const main = rec.players[0];
-  const official = main ? ratio(main.championshipWins, main.championshipGames) : null;
+  const official = main
+    ? ratio(main.championshipWins, main.championshipGames)
+    : null;
   const training = main ? ratio(main.trainingWins, main.trainingGames) : null;
   const others = rec.players.length - 1;
   const panelId = `ban-${rec.id}`;
@@ -162,11 +190,14 @@ function BanRow({
 
         <div className="min-w-0 flex-1 space-y-1.5">
           <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-            <p className="text-base font-semibold leading-tight">
-              {rec.name}
-            </p>
+            <p className="text-base font-semibold leading-tight">{rec.name}</p>
             {rec.tier && <TierBadge tier={rec.tier} />}
-            {rec.oneTrick && <OneTrickBadge player={rec.oneTrick.player} share={rec.oneTrick.share} />}
+            {rec.oneTrick && (
+              <OneTrickBadge
+                player={rec.oneTrick.player}
+                share={rec.oneTrick.share}
+              />
+            )}
             {rec.championship.games > 0 && (
               <span
                 title="Partidas oficiais do campeonato com este campeão (time todo)"
@@ -175,17 +206,18 @@ function BanRow({
                   winrateTone(rec.championship.wins / rec.championship.games),
                 )}
               >
-                Campeonato {rec.championship.wins}V {rec.championship.games - rec.championship.wins}D
+                Campeonato {rec.championship.wins}V{" "}
+                {rec.championship.games - rec.championship.wins}D
               </span>
             )}
             <span
-                className={cn(
-                  "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1",
-                  threat.className,
-                )}
-              >
-                {threat.label}
-              </span>
+              className={cn(
+                "inline-flex items-center rounded-md px-1.5 py-0.5 text-xs font-medium ring-1",
+                threat.className,
+              )}
+            >
+              {threat.label}
+            </span>
           </div>
 
           {main && (
@@ -196,7 +228,9 @@ function BanRow({
                 </span>
               )}
               <span className="text-sm font-medium">{main.player}</span>
-              {main.seasonGames > 0 && <Chip label="Soloq" value={`${main.seasonGames}`} />}
+              {main.seasonGames > 0 && (
+                <Chip label="Soloq" value={`${main.seasonGames}`} />
+              )}
               {official !== null && (
                 <Chip
                   label="Camp."
@@ -225,7 +259,9 @@ function BanRow({
             <p className="text-xl font-bold tabular-nums leading-none">
               {rec.score}
             </p>
-            <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">nota</p>
+            <p className="mt-1 text-[10px] uppercase tracking-wide text-muted-foreground">
+              nota
+            </p>
           </div>
           <ChevronDown
             aria-hidden
@@ -237,8 +273,8 @@ function BanRow({
         </div>
       </button>
 
-      {open && (
-        <div id={panelId} className="space-y-4 border-t border-foreground/10 px-4 py-4">
+      <Collapse open={open} id={panelId}>
+        <div className="space-y-4 border-t border-foreground/10 px-4 py-4">
           <ul className="divide-y divide-foreground/10">
             {rec.players.map((p) => (
               <PlayerUsage key={p.player} u={p} />
@@ -246,12 +282,15 @@ function BanRow({
           </ul>
           {rec.bannedAgainst > 0 && (
             <p className="rounded-lg bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
-              Banido <span className="font-semibold text-foreground">{rec.bannedAgainst}×</span>{" "}
+              Banido{" "}
+              <span className="font-semibold text-foreground">
+                {rec.bannedAgainst}×
+              </span>{" "}
               contra este time no campeonato
             </p>
           )}
         </div>
-      )}
+      </Collapse>
     </li>
   );
 }
@@ -260,13 +299,42 @@ function BanRow({
 // Tier list completa (também recolhível)
 // ---------------------------------------------------------------------------
 
+/** Painel que abre e fecha animando a altura (grid 0fr → 1fr), sem medir nada em JS. */
+function Collapse({
+  open,
+  id,
+  children,
+}: {
+  open: boolean;
+  id?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div
+      id={id}
+      inert={!open}
+      className={cn(
+        "grid transition-[grid-template-rows,opacity] duration-200 ease-out",
+        open ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+      )}
+    >
+      <div className="min-h-0 overflow-hidden">{children}</div>
+    </div>
+  );
+}
+
 function TierListRow({ champion }: { champion: BanChampion }) {
   const [open, setOpen] = useState(false);
   const played = champion.usage.length > 0;
   const total = champion.usage.reduce((s, u) => s + u.seasonGames, 0);
 
   return (
-    <li className={cn("rounded-lg ring-1 ring-foreground/10", !played && "opacity-50")}>
+    <li
+      className={cn(
+        "rounded-lg ring-1 ring-foreground/10",
+        !played && "opacity-50",
+      )}
+    >
       <button
         type="button"
         disabled={!played}
@@ -293,12 +361,14 @@ function TierListRow({ champion }: { champion: BanChampion }) {
           />
         )}
       </button>
-      {open && played && (
-        <ul className="divide-y divide-foreground/10 border-t border-foreground/10 px-3 py-3">
-          {champion.usage.map((u) => (
-            <PlayerUsage key={u.player} u={u} />
-          ))}
-        </ul>
+      {played && (
+        <Collapse open={open}>
+          <ul className="divide-y divide-foreground/10 border-t border-foreground/10 px-3 py-3">
+            {champion.usage.map((u) => (
+              <PlayerUsage key={u.player} u={u} />
+            ))}
+          </ul>
+        </Collapse>
       )}
     </li>
   );
@@ -309,11 +379,14 @@ function TierListRow({ champion }: { champion: BanChampion }) {
 export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   const [open, setOpen] = useState<Set<string>>(() => new Set());
   const [view, setView] = useState<"general" | "lane">("general");
-  const { data, error, isPending, isFetching, refetch } = useQuery({
-    // A escalação muda o cálculo no servidor, então entra na chave do cache.
-    queryKey: ["team-bans", slug, lineup?.active ? lineup.slugs : []],
-    queryFn: () => fetchTeamBans(slug, lineup?.active ? lineup.slugs : []),
-  });
+  const [tiersOpen, setTiersOpen] = useState(false);
+  const { data, error, isPending, isFetching, isPlaceholderData, refetch } =
+    useQuery({
+      // A escalação muda o cálculo no servidor, então entra na chave do cache.
+      queryKey: ["team-bans", slug, lineup?.active ? lineup.slugs : []],
+      queryFn: () => fetchTeamBans(slug, lineup?.active ? lineup.slugs : []),
+      placeholderData: keepPreviousData,
+    });
 
   if (isPending) {
     return (
@@ -334,7 +407,11 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
         <p role="alert" className="text-sm text-rose-400">
           {error.message}
         </p>
-        <Button variant="outline" disabled={isFetching} onClick={() => refetch()}>
+        <Button
+          variant="outline"
+          disabled={isFetching}
+          onClick={() => refetch()}
+        >
           {isFetching ? "Tentando…" : "Tentar de novo"}
         </Button>
       </div>
@@ -342,9 +419,7 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
   }
 
   const all =
-    view === "lane"
-      ? data.byLane.flatMap((g) => g.champions)
-      : data.bans;
+    view === "lane" ? data.byLane.flatMap((g) => g.champions) : data.bans;
   const allOpen = all.length > 0 && all.every((r) => open.has(r.id));
 
   const toggle = (id: string) =>
@@ -354,10 +429,14 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
       else next.add(id);
       return next;
     });
-  const toggleAll = () => setOpen(allOpen ? new Set() : new Set(all.map((r) => r.id)));
+  const toggleAll = () =>
+    setOpen(allOpen ? new Set() : new Set(all.map((r) => r.id)));
 
   return (
-    <div className="space-y-10">
+    <div
+      className={`space-y-10 transition-opacity duration-200 ${isPlaceholderData ? "opacity-50" : ""}`}
+      aria-busy={isPlaceholderData}
+    >
       {data.unavailable.length > 0 && (
         <p className="text-sm text-amber-300">
           Sem estatísticas da temporada de: {data.unavailable.join(", ")}.
@@ -371,7 +450,11 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <div role="group" aria-label="Visão dos bans" className="flex gap-2">
+            <div
+              role="group"
+              aria-label="Visão dos bans"
+              className="flex gap-2"
+            >
               <Button
                 size="sm"
                 variant={view === "general" ? "default" : "outline"}
@@ -397,11 +480,16 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
           {view === "lane" ? (
             <div className="space-y-8">
               <p className="text-sm text-muted-foreground">
-                Os melhores bans de cada lane, pela lane de quem mais domina o campeão.
+                Os melhores bans de cada lane, pela lane de quem mais domina o
+                campeão.
               </p>
               {data.byLane.map(({ role, champions }) => (
                 <section key={role ?? "none"} className="space-y-3">
-                  <LaneHeading role={role} count={champions.length} unit="campeão" />
+                  <LaneHeading
+                    role={role}
+                    count={champions.length}
+                    unit="campeão"
+                  />
                   <ul className="space-y-2">
                     {champions.map((rec, i) => (
                       <BanRow
@@ -422,7 +510,8 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
                 <div>
                   <h2 className="text-lg font-semibold">Bans</h2>
                   <p className="text-sm text-muted-foreground">
-                    {data.bans.length} campeões, do mais ao menos prioritário para este time.
+                    {data.bans.length} campeões, do mais ao menos prioritário
+                    para este time.
                   </p>
                 </div>
                 <ul className="space-y-2">
@@ -442,40 +531,57 @@ export function BansTab({ slug, lineup }: { slug: string; lineup?: Lineup }) {
         </>
       )}
 
-      <details className="group rounded-xl ring-1 ring-foreground/10">
-        <summary className="cursor-pointer select-none px-4 py-3 text-sm font-medium">
+      <div className="rounded-xl ring-1 ring-foreground/10">
+        <button
+          type="button"
+          aria-expanded={tiersOpen}
+          aria-controls="tier-list-panel"
+          onClick={() => setTiersOpen((o) => !o)}
+          className="flex w-full select-none items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium hover:bg-muted/30"
+        >
           Ver tier list completa dos mais roubados
-        </summary>
-        <div className="grid items-start gap-4 border-t border-foreground/10 p-4 lg:grid-cols-3">
-          {data.tiers.map(({ tier, champions }) => (
-            <Card key={tier}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <TierBadge tier={tier} />
-                  <Badge variant="outline" className="ml-auto">
-                    {champions.filter((c) => c.usage.length > 0).length}/{champions.length} jogados
-                  </Badge>
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ul className="space-y-2">
-                  {champions.map((c) => (
-                    <TierListRow key={c.id} champion={c} />
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      </details>
+          <ChevronDown
+            aria-hidden
+            className={cn(
+              "size-4 text-muted-foreground transition-transform",
+              tiersOpen && "rotate-180",
+            )}
+          />
+        </button>
+        <Collapse open={tiersOpen} id="tier-list-panel">
+          <div className="grid items-start gap-4 border-t border-foreground/10 p-4 lg:grid-cols-3">
+            {data.tiers.map(({ tier, champions }) => (
+              <Card key={tier}>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base">
+                    <TierBadge tier={tier} />
+                    <Badge variant="outline" className="ml-auto">
+                      {champions.filter((c) => c.usage.length > 0).length}/
+                      {champions.length} jogados
+                    </Badge>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ul className="space-y-2">
+                    {champions.map((c) => (
+                      <TierListRow key={c.id} champion={c} />
+                    ))}
+                  </ul>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Collapse>
+      </div>
 
       <p className="text-xs leading-relaxed text-muted-foreground">
-        Como a nota é calculada: 40% é a tier list (S vale 40 pontos, A 26 e B 13), 25% é o que o
-        time fez com o campeão em partidas oficiais (cada vitória pesa mais que cada derrota), 25%
-        é o domínio do melhor jogador (jogos na soloq, treinos e campeonato) e 10% é o fator one
-        trick. One tricks ainda têm nota mínima alta, mesmo fora da tier list. O winrate só conta
-        em treinos e jogos oficiais; vitórias em treino são estimadas, pois o cblow.xyz só informa
-        o placar da série.
+        Como a nota é calculada: 40% é a tier list (S vale 40 pontos, A 26 e B
+        13), 25% é o que o time fez com o campeão em partidas oficiais (cada
+        vitória pesa mais que cada derrota), 25% é o domínio do melhor jogador
+        (jogos na soloq, treinos e campeonato) e 10% é o fator one trick. One
+        tricks ainda têm nota mínima alta, mesmo fora da tier list. O winrate só
+        conta em treinos e jogos oficiais; vitórias em treino são estimadas,
+        pois o cblow.xyz só informa o placar da série.
       </p>
     </div>
   );

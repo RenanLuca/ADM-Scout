@@ -120,11 +120,56 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    /* Barras de rolagem discretas (as que não usam o ScrollArea do shadcn). */
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklab, var(--foreground) 28%, transparent) transparent;
   }
   body {
     @apply bg-background text-foreground;
   }
   html {
     @apply font-sans;
+  }
+
+  /* Tailwind 4 deixou os botões com cursor de seta: tudo que clica volta a mostrar a mão. */
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="tab"],
+  [role="checkbox"]:not(:disabled),
+  [role="menuitem"],
+  [role="option"],
+  summary,
+  label[for],
+  select:not(:disabled),
+  a[href] {
+    cursor: pointer;
+  }
+  button:disabled,
+  [aria-disabled="true"] {
+    cursor: not-allowed;
+  }
+
+  /* Resposta tátil ao clique: o elemento "afunda" um pouco. Exclui o que é arrastado. */
+  button:not(:disabled):not([aria-pressed="true"]):active,
+  a[href].group:active {
+    transform: scale(0.98);
+  }
+  button,
+  a[href] {
+    transition-property: color, background-color, border-color, box-shadow, opacity, transform;
+    transition-duration: 150ms;
+    transition-timing-function: ease-out;
+  }
+
+  /* Quem pede menos movimento no sistema não recebe animações. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 }

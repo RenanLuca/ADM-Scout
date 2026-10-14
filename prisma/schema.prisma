@@ -1,0 +1,65 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../app/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// Rotas (mesma ordem usada no app).
+enum Lane {
+  TOP
+  JUNGLE
+  MID
+  ADC
+  SUPPORT
+}
+
+/// Jogador do nosso time, criado à mão.
+model Player {
+  id        Int         @id @default(autoincrement())
+  name      String
+  /// Rotas que ele joga: cada uma tem o seu próprio quadro
+  lanes     Lane[]
+  position  Int         @default(0)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  entries   PickEntry[]
+
+  @@map("players")
+}
+
+/// Coluna do quadro (Prioridade, Testando…). Vale para o time todo.
+model PickCategory {
+  id        Int         @id @default(autoincrement())
+  name      String
+  /// Token de cor (emerald, amber, rose, sky, violet, slate)
+  color     String      @default("slate")
+  position  Int         @default(0)
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+  entries   PickEntry[]
+
+  @@map("pick_categories")
+}
+
+/// Campeão de um jogador, numa rota, dentro de uma categoria.
+model PickEntry {
+  id         Int          @id @default(autoincrement())
+  playerId   Int          @map("player_id")
+  lane       Lane
+  /// Id do campeão no Data Dragon (ex.: "MissFortune")
+  championId String       @map("champion_id")
+  categoryId Int          @map("category_id")
+  /// Ordem dentro da categoria
+  position   Int          @default(0)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  updatedAt  DateTime     @updatedAt @map("updated_at")
+  player     Player       @relation(fields: [playerId], references: [id], onDelete: Cascade)
+  category   PickCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([playerId, lane, championId])
+  @@index([categoryId])
+  @@map("pick_entries")
+}
