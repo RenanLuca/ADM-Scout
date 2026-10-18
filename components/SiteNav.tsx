@@ -28,7 +28,7 @@ export function SiteNav() {
     <header className="border-b border-foreground/10">
       <nav
         aria-label="Principal"
-        className="mx-auto flex w-full max-w-5xl items-center gap-1 px-4 py-3 sm:px-6"
+        className="mx-auto flex w-full max-w-[110rem] items-center gap-1 px-4 py-3 sm:px-6 lg:px-10"
       >
         <Link href="/" className="mr-4 font-semibold tracking-tight">
           CBLOW Scout

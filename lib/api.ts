@@ -14,6 +14,7 @@ import type {
   TeamWithPlayers,
   TeamBans,
   TeamChampionship,
+  TeamDraft,
   TeamTrainings,
 } from "./types";
 
@@ -71,6 +72,11 @@ export const fetchTeamTrainings = (slug: string) =>
 export const fetchTeamBans = (slug: string, players: string[] = []) =>
   getJson<TeamBans>(
     `/api/times/${slug}/bans${players.length ? `?players=${players.join(",")}` : ""}`,
+  );
+
+export const fetchTeamDraft = (slug: string, players: string[] = []) =>
+  getJson<TeamDraft>(
+    `/api/times/${slug}/draft${players.length ? `?players=${players.join(",")}` : ""}`,
   );
 
 export const fetchTeamChampionship = (slug: string) =>

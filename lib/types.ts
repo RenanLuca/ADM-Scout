@@ -170,6 +170,31 @@ export interface TeamBans {
   unavailable: string[];
 }
 
+/** Quão forte é o campeão na mão do jogador: melhores, bons e médios. */
+export type DraftTier = "best" | "good" | "medium";
+
+export interface DraftPick extends ChampionRef {
+  usage: BanUsage;
+  /** Soloq + treinos + campeonato. */
+  games: number;
+  /** WR só de treino + jogo oficial; null se não há nenhum no campeão. */
+  competitiveWinrate: number | null;
+}
+
+export interface PlayerDraft {
+  nick: string;
+  slug: string;
+  role: Role | null;
+  picks: Record<DraftTier, DraftPick[]>;
+}
+
+export interface TeamDraft {
+  team: { slug: string; name: string };
+  players: PlayerDraft[];
+  /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */
+  unavailable: string[];
+}
+
 // ---------------------------------------------------------------------------
 // Campeonato (partidas oficiais do CBLOW)
 // ---------------------------------------------------------------------------

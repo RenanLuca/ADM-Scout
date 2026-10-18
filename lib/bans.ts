@@ -90,18 +90,18 @@ const HIGH_THREAT = 70;
 const MEDIUM_THREAT = 50;
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
-const gamesOf = (u: BanUsage) => u.seasonGames + u.trainingGames + u.championshipGames;
+export const gamesOf = (u: BanUsage) => u.seasonGames + u.trainingGames + u.championshipGames;
 const competitiveGames = (u: BanUsage) => u.trainingGames + u.championshipGames;
 const competitiveWins = (u: BanUsage) => u.trainingWins + u.championshipWins;
 const volume = (c: BanChampion) => c.usage.reduce((s, u) => s + gamesOf(u), 0);
 
 /** WR só de treino + jogo oficial; null quando o jogador não tem nenhum no campeão. */
-function competitiveWinrate(u: BanUsage): number | null {
+export function competitiveWinrate(u: BanUsage): number | null {
   const g = competitiveGames(u);
   return g > 0 ? competitiveWins(u) / g : null;
 }
 
-function mastery(u: BanUsage): number {
+export function mastery(u: BanUsage): number {
   const vol = Math.sqrt(clamp01(gamesOf(u) / FULL_VOLUME_GAMES));
   const g = competitiveGames(u);
   if (g === 0) return vol;
@@ -246,16 +246,29 @@ async function loadSeason(
   }
 }
 
+export interface TeamUsage {
+  team: { slug: string; name: string };
+  /** championId (ddragon) → jogador → uso. */
+  usage: Map<string, Map<string, BanUsage>>;
+  meta: Map<string, ChampionRef>;
+  /** Rota de cada jogador pelo nick. */
+  roleByNick: Map<string, Role | null>;
+  /** Jogadores considerados (já filtrados pela escalação). */
+  roster: { slug: string; name: string; role: Role | null }[];
+  championship: Awaited<ReturnType<typeof getTeamChampionship>>;
+  /** Jogadores cujas estatísticas da temporada não puderam ser carregadas. */
+  unavailable: string[];
+}
+
 /**
- * Bans sugeridos contra um time: ranking único que mistura a tier list dos
- * campeões mais roubados com o que cada jogador joga bem (temporada ranqueada
- * inteira + treinos + partidas do campeonato do próprio time). Devolve os 5 mais prioritários e os 10 seguintes.
+ * O que cada jogador do time fez com cada campeão: temporada ranqueada inteira
+ * (OP.GG), treinos e campeonato. Base dos bans e do draft.
  */
-export async function getTeamBans(
+export async function loadTeamUsage(
   slug: string,
   /** Escalação (slugs dos jogadores). Vazia/ausente = elenco inteiro. */
   onlySlugs?: string[],
-): Promise<TeamBans | null> {
+): Promise<TeamUsage | null> {
   const data = await getTeam(slug);
   if (!data) return null;
 
@@ -348,6 +361,31 @@ export async function getTeamBans(
     }
   }
 
+  return {
+    team: data.team,
+    usage,
+    meta,
+    roleByNick,
+    roster: roster.map((p) => ({ slug: p.slug, name: p.name, role: p.role })),
+    championship,
+    unavailable,
+  };
+}
+
+/**
+ * Bans sugeridos contra um time: ranking único que mistura a tier list dos
+ * campeões mais roubados com o que cada jogador joga bem (temporada ranqueada
+ * inteira + treinos + partidas do campeonato do próprio time). Devolve os 5 mais prioritários e os 10 seguintes.
+ */
+export async function getTeamBans(
+  slug: string,
+  /** Escalação (slugs dos jogadores). Vazia/ausente = elenco inteiro. */
+  onlySlugs?: string[],
+): Promise<TeamBans | null> {
+  const loaded = await loadTeamUsage(slug, onlySlugs);
+  if (!loaded) return null;
+  const { team, usage, meta, roleByNick, championship, unavailable } = loaded;
+
   const bannedAgainstById = new Map<string, number>(
     championship.bannedAgainst.map((b) => [b.champion.id, b.count]),
   );
@@ -404,7 +442,7 @@ export async function getTeamBans(
   );
 
   return {
-    team: data.team,
+    team,
     bans: ranking.slice(0, BANS_COUNT),
     byLane,
     tiers,

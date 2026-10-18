@@ -7,6 +7,7 @@ import { PlayerCard } from "@/components/PlayerCard";
 import { TeamLogo } from "@/components/TeamLogo";
 import { BansTab } from "@/components/team/BansTab";
 import { ChampionshipTab } from "@/components/team/ChampionshipTab";
+import { DraftTab } from "@/components/team/DraftTab";
 import { LineupNotice, LineupPanel } from "@/components/team/LineupPanel";
 import { TrainingsTab } from "@/components/team/TrainingsTab";
 import { useLineup } from "@/components/team/lineup";
@@ -17,12 +18,13 @@ import { ApiError, fetchTeam } from "@/lib/api";
 import { groupByLane } from "@/lib/lanes";
 import type { StatsMode, TeamWithPlayers } from "@/lib/types";
 
-type Tab = "history" | "championship" | "trainings" | "bans";
+type Tab = "history" | "championship" | "trainings" | "draft" | "bans";
 
 const TABS: { value: Tab; label: string }[] = [
   { value: "history", label: "Histórico" },
   { value: "championship", label: "Campeonato" },
   { value: "trainings", label: "Treinos" },
+  { value: "draft", label: "Draft" },
   { value: "bans", label: "Possíveis bans" },
 ];
 
@@ -193,7 +195,8 @@ function TeamLayout({ slug, data }: { slug: string; data: TeamWithPlayers }) {
             {tab === "trainings" && (
               <TrainingsTab slug={slug} lineup={lineup} />
             )}
-            {tab === "bans" && <BansTab slug={slug} lineup={lineup} />}
+            {tab === "draft" && <DraftTab slug={slug} lineup={lineup} />}
+            {tab === "bans" &&<BansTab slug={slug} lineup={lineup} />}
           </div>
         </div>
       </div>
