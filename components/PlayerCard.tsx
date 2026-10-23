@@ -1,13 +1,22 @@
 "use client";
 
-import { keepPreviousData, useQuery, type UseQueryResult } from "@tanstack/react-query";
-import { ExternalLink } from "lucide-react";
+import {
+  keepPreviousData,
+  useMutation,
+  useQuery,
+  useQueryClient,
+  type UseQueryResult,
+} from "@tanstack/react-query";
+import { ExternalLink, Pencil } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 import { ChampionRow } from "@/components/ChampionRow";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, fetchPlayerStats } from "@/lib/api";
+import { ApiError, fetchPlayerStats, resetPlayerRiotId, savePlayerRiotId } from "@/lib/api";
 import type { Player, PlayerStats, Role, StatsMode } from "@/lib/types";
 
 const TOP_CHAMPIONS = 5;
@@ -95,6 +104,86 @@ function PlayerStatsBody({ query }: { query: UseQueryResult<PlayerStats, Error> 
   );
 }
 
+/** Edição do nick (Riot ID) do jogador, gravado no banco. */
+function RiotIdEditor({
+  teamSlug,
+  player,
+  currentId,
+  onClose,
+}: {
+  teamSlug: string;
+  player: Player;
+  currentId: string | null;
+  onClose: () => void;
+}) {
+  const qc = useQueryClient();
+  const [value, setValue] = useState(currentId ?? "");
+
+  const done = () => {
+    // O elenco e as telas que dependem dele (bans, draft) leem o nick do banco.
+    qc.invalidateQueries();
+    onClose();
+  };
+  const onError = (err: Error) => toast.error(err.message);
+
+  const save = useMutation({
+    mutationFn: () => savePlayerRiotId(teamSlug, player.slug, value.trim()),
+    onSuccess: () => {
+      toast.success("Nick atualizado.");
+      done();
+    },
+    onError,
+  });
+  const reset = useMutation({
+    mutationFn: () => resetPlayerRiotId(teamSlug, player.slug),
+    onSuccess: () => {
+      toast.success("Voltou a usar o link do cblow.xyz.");
+      done();
+    },
+    onError,
+  });
+  const busy = save.isPending || reset.isPending;
+
+  return (
+    <form
+      className="space-y-2"
+      onSubmit={(e) => {
+        e.preventDefault();
+        if (!busy) save.mutate();
+      }}
+    >
+      <Input
+        autoFocus
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        placeholder="Nome#TAG"
+        aria-label={`Riot ID de ${player.name}`}
+        maxLength={60}
+        disabled={busy}
+        onKeyDown={(e) => e.key === "Escape" && onClose()}
+      />
+      <div className="flex flex-wrap gap-2">
+        <Button type="submit" size="sm" disabled={busy || !value.includes("#")}>
+          {save.isPending ? "Salvando…" : "Salvar"}
+        </Button>
+        <Button type="button" size="sm" variant="outline" disabled={busy} onClick={onClose}>
+          Cancelar
+        </Button>
+        <Button
+          type="button"
+          size="sm"
+          variant="ghost"
+          disabled={busy}
+          title="Remove o ajuste manual e usa o link do OP.GG do cblow.xyz"
+          onClick={() => reset.mutate()}
+        >
+          Usar link do cblow.xyz
+        </Button>
+      </div>
+    </form>
+  );
+}
+
 export function PlayerCard({
   teamSlug,
   player,
@@ -111,6 +200,8 @@ export function PlayerCard({
     // Ao trocar de período, mantém os números antigos (esmaecidos) até os novos chegarem.
     placeholderData: keepPreviousData,
   });
+
+  const [editing, setEditing] = useState(false);
 
   // Se o jogador trocou de nick, mostramos o nome que o OP.GG realmente achou.
   const currentId = query.data?.riotId ?? player.riotId;
@@ -130,19 +221,34 @@ export function PlayerCard({
               </p>
             )}
           </div>
-          <div className="flex shrink-0 gap-1">
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Editar nick de ${player.name}`}
+              title="Editar nick (Riot ID)"
+              onClick={() => setEditing(true)}
+            >
+              <Pencil />
+            </Button>
             {player.role && <Badge variant="secondary">{ROLE_LABEL[player.role]}</Badge>}
           </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">
+        {editing && (
+          <RiotIdEditor
+            teamSlug={teamSlug}
+            player={player}
+            currentId={currentId}
+            onClose={() => setEditing(false)}
+          />
+        )}
         {player.riotId ? (
           <PlayerStatsBody query={query} />
         ) : (
           <p className="text-sm text-muted-foreground">
-            Sem Riot ID válido. Informe{" "}
-            <code className="rounded bg-muted px-1 py-0.5 text-xs">{player.slug}</code>{" "}
-            em <code className="rounded bg-muted px-1 py-0.5 text-xs">data/riot-ids.json</code>.
+            Sem Riot ID válido. Use o lápis para informar o nick.
           </p>
         )}
         {opggUrl && (

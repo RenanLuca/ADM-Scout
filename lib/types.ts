@@ -10,7 +10,7 @@ export interface Player {
   slug: string;
   name: string;
   role: Role | null;
-  /** "Nome#TAG", extraído do link do OP.GG do cblow.xyz (ou do override em data/riot-ids.json). */
+  /** "Nome#TAG", extraído do link do OP.GG do cblow.xyz (ou do nick cadastrado no banco). */
   riotId: string | null;
   opggUrl: string | null;
 }

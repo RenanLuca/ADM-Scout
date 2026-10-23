@@ -27,12 +27,9 @@ Não precisa de chave de API.
 
 ## Correções manuais
 
-Se o link do OP.GG no cblow.xyz não leva à conta certa, corrija em [`data/riot-ids.json`](data/riot-ids.json),
-pelo slug do jogador (final de `/jogadores/<slug>`):
-
-```json
-{ "exc4mbau": "ExC4mBau#6344" }
-```
+Se o link do OP.GG no cblow.xyz não leva à conta certa (ou o jogador mudou de nick), clique no lápis do
+card do jogador e informe o Riot ID (`Nome#TAG`). O nick fica na tabela `riot_id_overrides` do banco, pelo
+slug do jogador no cblow.xyz, e vale na hora para todas as abas. "Usar link do cblow.xyz" remove o ajuste.
 
 ## Fora do MVP
 

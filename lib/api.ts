@@ -131,3 +131,11 @@ export const deleteEntry = (input: EntryTarget) =>
   sendJson("DELETE", "/api/nossos-picks/entries", input);
 
 export const logout = () => sendJson("DELETE", "/api/entrar");
+
+/** Grava o Riot ID ("Nome#TAG") do jogador; `null` marca como sem Riot ID. */
+export const savePlayerRiotId = (teamSlug: string, playerSlug: string, riotId: string | null) =>
+  sendJson("PUT", `/api/times/${teamSlug}/jogadores/${playerSlug}/riot-id`, { riotId });
+
+/** Remove o ajuste manual: volta a usar o link do OP.GG do cblow.xyz. */
+export const resetPlayerRiotId = (teamSlug: string, playerSlug: string) =>
+  sendJson("DELETE", `/api/times/${teamSlug}/jogadores/${playerSlug}/riot-id`);

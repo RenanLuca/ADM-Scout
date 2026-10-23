@@ -1,18 +1,38 @@
-import overrides from "@/data/riot-ids.json";
+import { getDb } from "./db";
+import { InputError } from "./picks";
 
-const overrideMap = overrides as Record<string, string | null>;
+/** Normaliza "Nome #TAG" e espaços duplicados digitados à mão. */
+function normalizeRiotId(raw: string): string {
+  return raw.replace(/s+#/, "#").replace(/s{2,}/g, " ").trim();
+}
+
+/** Valida o Riot ID digitado ("Nome#TAG"). Lança InputError se não servir. */
+export function parseRiotId(v: unknown): string {
+  const id = typeof v === "string" ? normalizeRiotId(v) : "";
+  const i = id.lastIndexOf("#");
+  const name = id.slice(0, i).trim();
+  const tag = id.slice(i + 1).trim();
+  if (i <= 0 || !name || !tag || name.includes("#") || id.length > 60) {
+    throw new InputError('Informe o Riot ID no formato "Nome#TAG".');
+  }
+  return `${name}#${tag}`;
+}
 
 /**
- * Riot ID definido à mão em data/riot-ids.json ("Nome#TAG").
+ * Riot IDs definidos à mão, por slug do jogador no cblow.xyz (tabela riot_id_overrides).
  *  - string: usa esse valor (tem prioridade sobre o link do OP.GG do cblow.xyz);
  *  - null:   o jogador fica marcado como "sem Riot ID" (inválido por enquanto);
- *  - undefined: sem entrada, cai no link do OP.GG do cblow.xyz.
+ *  - sem entrada: cai no link do OP.GG do cblow.xyz.
+ * Se o banco estiver fora do ar, segue sem overrides (usa só o link do cblow.xyz).
  */
-export function getRiotIdOverride(playerSlug: string): string | null | undefined {
-  if (!(playerSlug in overrideMap)) return undefined;
-  // Tolera "Nome #TAG" e espaços duplicados ao digitar à mão.
-  const id = overrideMap[playerSlug]?.replace(/\s+#/, "#").replace(/\s{2,}/g, " ").trim();
-  return id && id.includes("#") ? id : null;
+export async function loadRiotIdOverrides(): Promise<Map<string, string | null>> {
+  try {
+    const rows = await getDb().riotIdOverride.findMany();
+    return new Map(rows.map((r) => [r.playerSlug, r.riotId]));
+  } catch (err) {
+    console.error("[riot-ids] não foi possível ler os Riot IDs do banco:", err);
+    return new Map();
+  }
 }
 
 /**

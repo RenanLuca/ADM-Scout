@@ -63,3 +63,14 @@ model PickEntry {
   @@index([categoryId])
   @@map("pick_entries")
 }
+
+/// Riot ID (nick do OP.GG) de um jogador de qualquer time, pelo slug do cblow.xyz.
+/// Sobrepõe o link do OP.GG do cblow.xyz; `riotId` nulo marca o jogador como "sem Riot ID".
+model RiotIdOverride {
+  playerSlug String   @id @map("player_slug")
+  riotId     String?  @map("riot_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@map("riot_id_overrides")
+}

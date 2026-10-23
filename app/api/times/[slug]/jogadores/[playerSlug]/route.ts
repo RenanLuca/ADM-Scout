@@ -32,7 +32,7 @@ export async function GET(
     if (isNotFound(err)) {
       return Response.json(
         {
-          error: `Jogador "${player.riotId}" não encontrado no OP.GG. Se o jogador mudou de nick, corrija em data/riot-ids.json.`,
+          error: `Jogador "${player.riotId}" não encontrado no OP.GG. Se o jogador mudou de nick, atualize o nick no card do jogador.`,
           code: "not_found",
         },
         { status: 404 },

@@ -1,6 +1,6 @@
 import { cacheLife } from "next/cache";
 import { laneIndex } from "./lanes";
-import { opggUrlFor, riotIdFromOpgg, getRiotIdOverride } from "./riot-ids";
+import { loadRiotIdOverrides, opggUrlFor, riotIdFromOpgg } from "./riot-ids";
 import type { Player, Role, Team, TeamWithPlayers } from "./types";
 
 // API JSON usada pelo próprio site cblow.xyz (descoberta no bundle do front).
@@ -64,13 +64,14 @@ async function fetchTeam(
   return { team: toTeam(data), players: data.players };
 }
 
-/** Elenco (cacheado) + Riot IDs, lidos a cada chamada para o override em data/riot-ids.json valer na hora. */
+/** Elenco (cacheado) + Riot IDs, com os overrides lidos do banco a cada chamada, para a edição valer na hora. */
 export async function getTeam(slug: string): Promise<TeamWithPlayers | null> {
   const data = await fetchTeam(slug);
   if (!data) return null;
 
+  const overrides = await loadRiotIdOverrides();
   const players: Player[] = data.players.map((p) => {
-    const override = getRiotIdOverride(p.slug);
+    const override = overrides.has(p.slug) ? (overrides.get(p.slug) ?? null) : undefined;
     const riotId =
       override !== undefined
         ? override
