@@ -281,7 +281,11 @@ export async function loadTeamUsage(
   const rosterSlugs = new Set(roster.map((p) => p.slug));
 
   const [trainings, championship, seasons] = await Promise.all([
-    getTeamTrainings(slug),
+    // Treino é um complemento: se a API do cblow.xyz falhar (ou tirar o endpoint), seguimos sem ele.
+    getTeamTrainings(slug).catch((err) => {
+      console.error("[bans] treinos indisponíveis:", err);
+      return null;
+    }),
     getTeamChampionship(slug),
     Promise.allSettled(roster.map((p) => loadSeason(p.riotId, data.team.name))),
   ]);
