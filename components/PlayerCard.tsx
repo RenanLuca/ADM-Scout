@@ -7,16 +7,23 @@ import {
   useQueryClient,
   type UseQueryResult,
 } from "@tanstack/react-query";
-import { ExternalLink, Pencil } from "lucide-react";
+import { ExternalLink, Pencil, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ChampionRow } from "@/components/ChampionRow";
+import { useConfirm } from "@/components/ConfirmProvider";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, fetchPlayerStats, resetPlayerRiotId, savePlayerRiotId } from "@/lib/api";
+import {
+  ApiError,
+  fetchPlayerStats,
+  removePlayer,
+  resetPlayerRiotId,
+  savePlayerRiotId,
+} from "@/lib/api";
 import type { Player, PlayerStats, Role, StatsMode } from "@/lib/types";
 
 const TOP_CHAMPIONS = 5;
@@ -203,6 +210,27 @@ export function PlayerCard({
 
   const [editing, setEditing] = useState(false);
 
+  const qc = useQueryClient();
+  const confirm = useConfirm();
+  const remove = useMutation({
+    mutationFn: () => removePlayer(teamSlug, player.slug),
+    onSuccess: () => {
+      toast.success(`${player.name} removido do time.`);
+      // O elenco e as telas que dependem dele (bans, draft) deixam de listar o jogador.
+      qc.invalidateQueries();
+    },
+    onError: (err: Error) => toast.error(err.message),
+  });
+  const onRemove = async () => {
+    const ok = await confirm({
+      title: `Remover ${player.name} do time?`,
+      description: "Use quando o jogador sair do time durante o camp. Ele some do elenco, dos bans e do draft.",
+      confirmLabel: "Remover",
+      destructive: true,
+    });
+    if (ok) remove.mutate();
+  };
+
   // Se o jogador trocou de nick, mostramos o nome que o OP.GG realmente achou.
   const currentId = query.data?.riotId ?? player.riotId;
   const renamed = Boolean(query.data && query.data.riotId !== player.riotId);
@@ -230,6 +258,16 @@ export function PlayerCard({
               onClick={() => setEditing(true)}
             >
               <Pencil />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={`Remover ${player.name} do time`}
+              title="Remover do time"
+              disabled={remove.isPending}
+              onClick={onRemove}
+            >
+              <Trash2 />
             </Button>
             {player.role && <Badge variant="secondary">{ROLE_LABEL[player.role]}</Badge>}
           </div>

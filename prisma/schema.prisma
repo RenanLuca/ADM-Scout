@@ -74,3 +74,12 @@ model RiotIdOverride {
 
   @@map("riot_id_overrides")
 }
+
+/// Jogador tirado do elenco de um time (saiu durante o camp), pelo slug do cblow.xyz.
+/// O cblow.xyz continua listando o jogador; aqui só o escondemos do app.
+model RemovedPlayer {
+  playerSlug String   @id @map("player_slug")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  @@map("removed_players")
+}

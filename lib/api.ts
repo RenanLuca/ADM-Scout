@@ -139,3 +139,7 @@ export const savePlayerRiotId = (teamSlug: string, playerSlug: string, riotId: s
 /** Remove o ajuste manual: volta a usar o link do OP.GG do cblow.xyz. */
 export const resetPlayerRiotId = (teamSlug: string, playerSlug: string) =>
   sendJson("DELETE", `/api/times/${teamSlug}/jogadores/${playerSlug}/riot-id`);
+
+/** Tira o jogador do elenco do time (ex.: saiu durante o camp). */
+export const removePlayer = (teamSlug: string, playerSlug: string) =>
+  sendJson("DELETE", `/api/times/${teamSlug}/jogadores/${playerSlug}`);

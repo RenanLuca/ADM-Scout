@@ -35,6 +35,17 @@ export async function loadRiotIdOverrides(): Promise<Map<string, string | null>>
   }
 }
 
+/** Slugs dos jogadores removidos do elenco (tabela removed_players). Banco fora do ar: ninguém é escondido. */
+export async function loadRemovedPlayers(): Promise<Set<string>> {
+  try {
+    const rows = await getDb().removedPlayer.findMany();
+    return new Set(rows.map((r) => r.playerSlug));
+  } catch (err) {
+    console.error("[riot-ids] não foi possível ler os jogadores removidos do banco:", err);
+    return new Set();
+  }
+}
+
 /**
  * Extrai "Nome#TAG" de um link do OP.GG (".../summoners/br/Nome-TAG").
  * A tag nunca tem hífen; o nome pode virar "Nome-Composto" quando tinha espaço.

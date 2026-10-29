@@ -1,4 +1,6 @@
 import { getTeam } from "@/lib/cblol";
+import { getDb } from "@/lib/db";
+import { handleError, jsonError } from "@/lib/http";
 import { getPlayerStats, isNotFound } from "@/lib/opgg";
 import type { StatsMode } from "@/lib/types";
 
@@ -45,5 +47,27 @@ export async function GET(
       },
       { status: 502 },
     );
+  }
+}
+
+/** Tira o jogador do elenco (saiu do time durante o camp). */
+export async function DELETE(
+  _req: Request,
+  ctx: RouteContext<"/api/times/[slug]/jogadores/[playerSlug]">,
+) {
+  try {
+    const { slug, playerSlug } = await ctx.params;
+    const data = await getTeam(slug).catch(() => null);
+    if (!data?.players.some((p) => p.slug === playerSlug)) {
+      return jsonError("Jogador não encontrado.", "not_found", 404);
+    }
+    await getDb().removedPlayer.upsert({
+      where: { playerSlug },
+      create: { playerSlug },
+      update: {},
+    });
+    return Response.json({ ok: true });
+  } catch (err) {
+    return handleError(err, "player:delete");
   }
 }
